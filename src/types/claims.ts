@@ -81,6 +81,8 @@ export interface ClaimAttachment {
   fileType: string;
   fileSize: number;
   url: string;
+  bucket?: string;
+  path?: string;
   uploadedAt: string;
 }
 

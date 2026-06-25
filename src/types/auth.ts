@@ -55,7 +55,7 @@ export interface PasswordResetRequest {
 }
 
 export interface ResetPasswordInput {
-  token: string;
+  token?: string;
   password: string;
 }
 

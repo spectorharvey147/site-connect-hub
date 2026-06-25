@@ -358,10 +358,6 @@ export const authService = {
   },
 
   async resetPassword(input: ResetPasswordInput) {
-    if (!input.token && isSupabaseConfigured) {
-      throw new Error("Reset token is missing.");
-    }
-
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.auth.updateUser({
         password: input.password,
@@ -375,6 +371,43 @@ export const authService = {
     return {
       message: "Password reset complete.",
     };
+  },
+
+  async establishPasswordRecoverySession(url = window.location.href) {
+    if (!isSupabaseConfigured || !supabase) {
+      return true;
+    }
+
+    const currentSession = await supabase.auth.getSession();
+    if (currentSession.data.session) {
+      return true;
+    }
+
+    const parsedUrl = new URL(url);
+    const code = parsedUrl.searchParams.get("code");
+    if (code) {
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) {
+        throw new Error(error.message);
+      }
+      return true;
+    }
+
+    const hashParams = new URLSearchParams(parsedUrl.hash.replace(/^#/, ""));
+    const accessToken = hashParams.get("access_token");
+    const refreshToken = hashParams.get("refresh_token");
+    if (accessToken && refreshToken) {
+      const { error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+      if (error) {
+        throw new Error(error.message);
+      }
+      return true;
+    }
+
+    return false;
   },
 
   async checkIfAdminExists() {

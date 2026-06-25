@@ -44,6 +44,15 @@ function splitName(input: UserInviteInput) {
   };
 }
 
+function nullableUuid(value: string | null | undefined) {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function cleanUuidList(values: string[] | undefined) {
+  return (values ?? []).map((value) => value.trim()).filter(Boolean);
+}
+
 export const usersService = {
   async listUsers(actor: AppUser) {
     assertCanManage(actor);
@@ -69,6 +78,7 @@ export const usersService = {
       throw new Error("Enter user email.");
     }
     const { firstName, lastName } = splitName(input);
+    const projectIds = cleanUuidList(input.projectIds);
     const user = await userHierarchyService.createUserWithHierarchy(
       {
         organizationId: input.organizationId || actor.organizationId || "",
@@ -78,12 +88,15 @@ export const usersService = {
         email: input.email,
         phone: input.phone,
         role: input.role,
-        departmentId: input.departmentId,
-        designationId: input.designationId,
-        reportingManagerId: input.reportingManagerId || input.managerId,
-        hodUserId: input.hodUserId,
-        primaryProjectId: input.primaryProjectId || input.projectIds[0],
-        projectIds: input.projectIds,
+        departmentId: nullableUuid(input.departmentId) ?? "",
+        designationId: nullableUuid(input.designationId) ?? undefined,
+        reportingManagerId:
+          nullableUuid(input.reportingManagerId) ??
+          nullableUuid(input.managerId) ??
+          undefined,
+        hodUserId: nullableUuid(input.hodUserId) ?? undefined,
+        primaryProjectId: nullableUuid(input.primaryProjectId) ?? projectIds[0],
+        projectIds,
         employmentType: input.employmentType,
         joiningDate: input.joiningDate,
         status: "invited",
@@ -104,17 +117,30 @@ export const usersService = {
       throw new Error("Only Super Admin can update another Super Admin.");
     }
 
+    const normalized = {
+      ...input,
+      departmentId: nullableUuid(input.departmentId) ?? undefined,
+      designationId: nullableUuid(input.designationId) ?? undefined,
+      reportingManagerId:
+        nullableUuid(input.reportingManagerId) ??
+        nullableUuid(input.managerId) ??
+        undefined,
+      hodUserId: nullableUuid(input.hodUserId) ?? undefined,
+      primaryProjectId: nullableUuid(input.primaryProjectId) ?? undefined,
+      projectIds: cleanUuidList(input.projectIds),
+    };
+
     if (input.reportingManagerId !== undefined || input.managerId !== undefined) {
       await userHierarchyService.updateReportingManager(
         userId,
-        input.reportingManagerId ?? input.managerId,
+        normalized.reportingManagerId,
         actor,
       );
     }
-    if (input.departmentId && input.departmentId !== target.departmentId) {
+    if (normalized.departmentId && normalized.departmentId !== target.departmentId) {
       await userHierarchyService.updateUserDepartment(
         userId,
-        input.departmentId,
+        normalized.departmentId,
         actor,
       );
     }
@@ -125,9 +151,9 @@ export const usersService = {
         .update({
           role_id: input.role,
           status: input.status,
-          designation_id: input.designationId,
-          hod_user_id: input.hodUserId,
-          primary_project_id: input.primaryProjectId,
+          designation_id: normalized.designationId,
+          hod_user_id: normalized.hodUserId,
+          primary_project_id: normalized.primaryProjectId,
           employment_type: input.employmentType,
           updated_by: actor.id,
         })
@@ -162,15 +188,15 @@ export const usersService = {
       ...current,
       role: input.role ?? current.role,
       status: input.status ?? current.status,
-      projectIds: input.projectIds ?? current.projectIds,
+      projectIds: normalized.projectIds ?? current.projectIds,
       department: input.department ?? current.department,
-      departmentId: input.departmentId ?? current.departmentId,
-      designationId: input.designationId ?? current.designationId,
-      managerId: input.reportingManagerId ?? input.managerId ?? current.managerId,
+      departmentId: normalized.departmentId ?? current.departmentId,
+      designationId: normalized.designationId ?? current.designationId,
+      managerId: normalized.reportingManagerId ?? current.managerId,
       reportingManagerId:
-        input.reportingManagerId ?? input.managerId ?? current.reportingManagerId,
-      hodUserId: input.hodUserId ?? current.hodUserId,
-      primaryProjectId: input.primaryProjectId ?? current.primaryProjectId,
+        normalized.reportingManagerId ?? current.reportingManagerId,
+      hodUserId: normalized.hodUserId ?? current.hodUserId,
+      primaryProjectId: normalized.primaryProjectId ?? current.primaryProjectId,
       employmentType: input.employmentType ?? current.employmentType,
     };
     hierarchyDemoStore.setUsers(

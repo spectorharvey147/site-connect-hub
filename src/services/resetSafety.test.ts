@@ -31,6 +31,7 @@ describe("production reset safety", () => {
       "fuel-receipts",
       "vendor-contracts",
       "payment-proofs",
+      "sap-exports",
     ];
 
     for (const bucket of requiredBuckets) {

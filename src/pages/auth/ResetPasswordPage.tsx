@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, LockKeyhole } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -47,6 +47,8 @@ export function ResetPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
   const token = searchParams.get("token") ?? "";
 
   const {
@@ -65,6 +67,35 @@ export function ResetPasswordPage() {
   const password = watch("password");
   const strength = useMemo(() => getStrength(password), [password]);
 
+  useEffect(() => {
+    let active = true;
+    void authService
+      .establishPasswordRecoverySession()
+      .then((ready) => {
+        if (!active) {
+          return;
+        }
+        setSessionReady(ready);
+        setSessionError(
+          ready
+            ? null
+            : "Open the latest password reset link from your email and try again.",
+        );
+      })
+      .catch((error) => {
+        if (active) {
+          setSessionError(
+            error instanceof Error
+              ? error.message
+              : "Unable to validate password reset link.",
+          );
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function onSubmit(values: ResetPasswordFormValues) {
     try {
       await authService.resetPassword({ token, password: values.password });
@@ -81,6 +112,11 @@ export function ResetPasswordPage() {
       subtitle="Create a new password for your Site Connect account."
     >
       <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+        {sessionError ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-brand-danger">
+            {sessionError}
+          </div>
+        ) : null}
         <Input
           label="New password"
           type={showPassword ? "text" : "password"}
@@ -121,7 +157,13 @@ export function ResetPasswordPage() {
           error={errors.confirmPassword?.message}
           {...register("confirmPassword")}
         />
-        <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting}>
+        <Button
+          type="submit"
+          className="w-full"
+          size="lg"
+          isLoading={isSubmitting}
+          disabled={!sessionReady}
+        >
           Reset Password
         </Button>
       </form>

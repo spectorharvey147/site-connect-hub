@@ -233,7 +233,9 @@ export function SubmitClaimPage() {
         fileName: file.fileName,
         fileType: file.fileType,
         fileSize: file.fileSize,
-        url: file.signedUrl ?? file.path,
+        url: file.path,
+        bucket: file.bucket,
+        path: file.path,
         uploadedAt: new Date().toISOString(),
       })),
     };
@@ -248,6 +250,20 @@ export function SubmitClaimPage() {
       if (items.length === 0) {
         toast.error("Add at least one expense item.");
         setStep(2);
+        return;
+      }
+
+      const withBillMissingProof = !saveAsDraft && items.some(
+        (item) =>
+          item.billType === "with_bill" &&
+          attachments.length === 0 &&
+          !item.attachmentName?.trim(),
+      );
+      if (withBillMissingProof) {
+        toast.error(
+          "Upload at least one bill attachment or enter a bill reference for with-bill items.",
+        );
+        setStep(3);
         return;
       }
 

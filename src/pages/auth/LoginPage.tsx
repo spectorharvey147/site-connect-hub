@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ export function LoginPage() {
   const { login } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [adminExists, setAdminExists] = useState<boolean | null>(null);
   const rememberedIdentifier = useMemo(
     () => authService.getRememberedIdentifier(),
     [],
@@ -53,6 +54,25 @@ export function LoginPage() {
     | undefined;
   const redirectTo = redirectState?.from?.pathname ?? "/home";
 
+  useEffect(() => {
+    let active = true;
+    void authService
+      .checkIfAdminExists()
+      .then((exists) => {
+        if (active) {
+          setAdminExists(exists);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setAdminExists(true);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
   async function onSubmit(values: LoginFormValues) {
     setFormError(null);
     try {
@@ -73,6 +93,25 @@ export function LoginPage() {
       subtitle="Use your company email or employee ID to access Site Connect."
     >
       <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+        {adminExists === false ? (
+          <Card className="border-brand-blue/30 bg-brand-light p-4">
+            <p className="text-sm font-bold text-text-primary">
+              First-time setup required
+            </p>
+            <p className="mt-1 text-xs leading-5 text-text-secondary">
+              No Super Admin exists yet. Create the first Super Admin and
+              organization before signing in.
+            </p>
+            <Button
+              type="button"
+              className="mt-3 w-full"
+              variant="secondary"
+              onClick={() => navigate("/setup-admin")}
+            >
+              Create first Super Admin / Setup Organization
+            </Button>
+          </Card>
+        ) : null}
         <Input
           label="Email / Employee ID"
           autoComplete="username"

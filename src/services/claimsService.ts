@@ -8,6 +8,7 @@ import {
 import { recordAuditLog } from "@/services/auditService";
 import { approvalMatrixService } from "@/services/approvalMatrixService";
 import { notificationService } from "@/services/notificationService";
+import { storageService } from "@/services/storageService";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import type { AppUser, Role } from "@/types/auth";
 import type {
@@ -977,6 +978,8 @@ interface SupabaseClaimAttachmentRow {
   id: string;
   claim_id: string;
   file_url: string;
+  file_bucket: string | null;
+  file_path: string | null;
   file_name: string;
   file_type: string | null;
   file_size: number | null;
@@ -1239,6 +1242,27 @@ async function mapSupabaseClaims(rows: SupabaseClaimRow[]): Promise<Claim[]> {
     fetchProfiles(approvals.map((approval) => approval.actor_id)),
   ]);
 
+  const attachmentUrls = new Map<string, string>();
+  await Promise.all(
+    attachments.map(async (attachment) => {
+      if (!attachment.file_bucket || !attachment.file_path) {
+        attachmentUrls.set(attachment.id, attachment.file_url);
+        return;
+      }
+      try {
+        attachmentUrls.set(
+          attachment.id,
+          await storageService.createSignedUrl(
+            attachment.file_bucket as Parameters<typeof storageService.createSignedUrl>[0],
+            attachment.file_path,
+          ),
+        );
+      } catch {
+        attachmentUrls.set(attachment.id, attachment.file_url);
+      }
+    }),
+  );
+
   return rows.map((row) => {
     const profile = profiles.get(row.user_id);
     const project = row.project_id ? projects.get(row.project_id) : undefined;
@@ -1296,7 +1320,9 @@ async function mapSupabaseClaims(rows: SupabaseClaimRow[]): Promise<Claim[]> {
           fileName: attachment.file_name,
           fileType: attachment.file_type ?? "",
           fileSize: attachment.file_size ?? 0,
-          url: attachment.file_url,
+          url: attachmentUrls.get(attachment.id) ?? attachment.file_url,
+          bucket: attachment.file_bucket ?? undefined,
+          path: attachment.file_path ?? undefined,
           uploadedAt: attachment.created_at,
         })),
       approvals: approvals
@@ -1477,7 +1503,9 @@ async function insertSupabaseClaim(
         input.attachments.map((attachment) => ({
           claim_id: claimRow.id,
           organization_id: organizationId,
-          file_url: attachment.url,
+          file_url: attachment.path ?? attachment.url,
+          file_bucket: attachment.bucket ?? "claim-attachments",
+          file_path: attachment.path ?? attachment.url,
           file_name: attachment.fileName,
           file_type: attachment.fileType,
           file_size: attachment.fileSize,
