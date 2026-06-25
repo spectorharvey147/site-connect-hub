@@ -440,7 +440,19 @@ export const authService = {
         { body: input },
       );
       if (setupError) {
-        throw new Error(setupError.message);
+        const context = setupError.context as
+          | { json?: () => Promise<unknown>; text?: () => Promise<string> }
+          | undefined;
+        const detail = await context
+          ?.json?.()
+          .then((body) => {
+            if (body && typeof body === "object" && "error" in body) {
+              return String((body as { error?: unknown }).error);
+            }
+            return "";
+          })
+          .catch(() => "");
+        throw new Error(detail || setupError.message);
       }
       const { data, error: loginError } = await supabase.auth.signInWithPassword({
         email: input.email.trim().toLowerCase(),

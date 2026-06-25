@@ -69,9 +69,11 @@ export function SetupAdminPage() {
   const { createInitialAdmin } = useAuth();
   const [adminExists, setAdminExists] = useState<boolean | null>(null);
   const [step, setStep] = useState(0);
+  const [setupError, setSetupError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
+    trigger,
     formState: { errors, isSubmitting },
   } = useForm<SetupAdminFormValues>({
     resolver: zodResolver(setupAdminSchema),
@@ -105,6 +107,7 @@ export function SetupAdminPage() {
   }, []);
 
   async function onSubmit(values: SetupAdminFormValues) {
+    setSetupError(null);
     const payload: InitialAdminInput = {
       organizationName: values.organizationName,
       organizationCode: values.organizationCode,
@@ -133,10 +136,42 @@ export function SetupAdminPage() {
       toast.success("Organization and first Super Admin created.");
       navigate("/home", { replace: true });
     } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Unable to create initial admin.",
-      );
+      const message =
+        error instanceof Error ? error.message : "Unable to create initial admin.";
+      setSetupError(message);
+      toast.error(message);
     }
+  }
+
+  async function goNext() {
+    setSetupError(null);
+    const fieldsByStep: Array<Array<keyof SetupAdminFormValues>> = [
+      ["organizationName", "organizationCode"],
+      [
+        "firstName",
+        "lastName",
+        "email",
+        "phone",
+        "employeeCode",
+        "password",
+        "confirmPassword",
+      ],
+      ["supportEmail", "supportPhone", "currency", "timezone"],
+      ["defaultWorkflow"],
+      [],
+    ];
+    const valid = await trigger(fieldsByStep[step], { shouldFocus: true });
+    if (!valid) {
+      setSetupError("Please complete the highlighted fields before continuing.");
+      return;
+    }
+    setStep((current) => Math.min(current + 1, setupSteps.length - 1));
+  }
+
+  function validationSummary() {
+    return Object.values(errors)
+      .map((error) => error?.message)
+      .filter((message): message is string => Boolean(message));
   }
 
   if (adminExists) {
@@ -170,6 +205,11 @@ export function SetupAdminPage() {
       </div>
 
       <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+        {setupError ? (
+          <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-brand-danger">
+            {setupError}
+          </div>
+        ) : null}
         {step === 0 ? (
           <Card className="space-y-4 p-4">
             <h3 className="text-base font-bold text-text-primary">
@@ -343,6 +383,16 @@ export function SetupAdminPage() {
               then create departments, HODs, managers, users, projects and
               approval workflows from Settings and User Management.
             </p>
+            {validationSummary().length > 0 ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <p className="font-semibold">Please fix these fields:</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {validationSummary().map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </Card>
         ) : null}
 
@@ -360,11 +410,7 @@ export function SetupAdminPage() {
             <Button
               type="button"
               rightIcon={<ArrowRight className="h-4 w-4" />}
-              onClick={() =>
-                setStep((current) =>
-                  Math.min(current + 1, setupSteps.length - 1),
-                )
-              }
+              onClick={() => void goNext()}
             >
               Next
             </Button>
