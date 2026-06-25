@@ -1799,11 +1799,48 @@ export const claimsService = {
         "pending_payment",
       ],
     };
-    const claims = await this.listClaims(user);
+    if (shouldUseSupabaseClaims()) {
+      const { data, error } = await claimsClient()
+        .from("claims")
+        .select("*")
+        .in("status", statusByStage[stage])
+        .is("deleted_at", null)
+        .order("submitted_at", { ascending: true, nullsFirst: false })
+        .limit(50);
+      if (error) {
+        throw new Error(error.message);
+      }
+      const actionByStage = {
+        admin: "admin_review",
+        manager: "manager_review",
+        final: "final_review",
+        payment: "generate_voucher",
+      } as const;
+      const mappedClaims = await mapSupabaseClaims(data as SupabaseClaimRow[]);
+      return mappedClaims.filter((claim) =>
+        canPerformClaimAction({
+          user,
+          claim,
+          action: actionByStage[stage],
+        }).allowed,
+      );
+    }
+
+    const actionByStage = {
+      admin: "admin_review",
+      manager: "manager_review",
+      final: "final_review",
+      payment: "generate_voucher",
+    } as const;
+    const claims = readClaims();
     return claims.filter(
       (claim) =>
         statusByStage[stage].includes(claim.status) &&
-        (stage !== "final" || getNextClaimFinalApprover(claim) === user.role),
+        canPerformClaimAction({
+          user,
+          claim,
+          action: actionByStage[stage],
+        }).allowed,
     );
   },
 

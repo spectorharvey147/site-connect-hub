@@ -1,8 +1,9 @@
-import { Download, FileText, ReceiptText } from "lucide-react";
+import { ReceiptText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApprovalTimeline } from "@/components/claims/ApprovalTimeline";
+import { ClaimAttachmentsList } from "@/components/claims/ClaimAttachmentsList";
 import { ClaimItemsTable } from "@/components/claims/ClaimItemsTable";
 import { ClaimStatusBadge } from "@/components/claims/ClaimStatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -106,37 +107,7 @@ export function ClaimDetailPage() {
               <CardDescription>Claim receipts and supporting files.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {claim.attachments.length === 0 ? (
-                <p className="text-sm text-text-secondary">No attachments.</p>
-              ) : (
-                claim.attachments.map((attachment) => (
-                  <div
-                    key={attachment.id}
-                    className="flex items-center justify-between rounded-lg border border-surface-border p-3"
-                  >
-                    <div className="flex min-w-0 items-center gap-3">
-                      <FileText className="h-5 w-5 shrink-0 text-brand-blue" />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-text-primary">
-                          {attachment.fileName}
-                        </p>
-                        <p className="text-xs text-text-secondary">
-                          {Math.round(attachment.fileSize / 1024)} KB
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      title="Preview / download"
-                      onClick={() => window.open(attachment.url, "_blank", "noopener,noreferrer")}
-                    >
-                      <Download className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))
-              )}
+              <ClaimAttachmentsList attachments={claim.attachments} />
             </CardContent>
           </Card>
         </div>

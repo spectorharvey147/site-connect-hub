@@ -59,7 +59,16 @@ export function ClaimsLandingPage() {
     return null;
   }
 
-  const canApprove = ["manager", "admin_hr", "super_admin"].includes(user.role);
+  const queueLink =
+    user.role === "admin_hr"
+      ? "/claims/admin-verification"
+      : user.role === "manager"
+        ? "/claims/manager-approval"
+        : user.role === "hod"
+          ? "/claims/final-approval"
+          : user.role === "super_admin"
+            ? "/claims/admin-verification"
+            : null;
   const canPay = ["accounts_officer", "super_admin"].includes(user.role);
   const currentBalance =
     balances.find((balance) => balance.userId === user.id) ?? balances[0];
@@ -138,18 +147,12 @@ export function ClaimsLandingPage() {
               description="Audit register for claims, vouchers and payments."
               to="/claims/transactions"
             />
-            {canApprove ? (
+            {queueLink ? (
               <QuickLink
                 icon={<ReceiptText className="h-5 w-5" />}
                 title="Approval Queues"
                 description="Verify, approve, reduce or return claims."
-                to={
-                  user.role === "admin_hr"
-                    ? "/claims/admin-verification"
-                    : user.role === "manager"
-                      ? "/claims/manager-approval"
-                      : "/claims/final-approval"
-                }
+                to={queueLink}
               />
             ) : null}
             {canPay ? (

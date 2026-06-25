@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ClaimItemsTable } from "@/components/claims/ClaimItemsTable";
+import { ClaimAttachmentsList } from "@/components/claims/ClaimAttachmentsList";
 import { ClaimStatusBadge } from "@/components/claims/ClaimStatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
@@ -171,6 +172,12 @@ function ReviewCard({
       </CardHeader>
       <CardContent className="space-y-4">
         <ClaimItemsTable items={claim.items} />
+        <div className="rounded-lg border border-surface-border bg-slate-50 p-4">
+          <p className="mb-3 text-sm font-bold text-text-primary">
+            Documents / bills ({claim.attachments.length})
+          </p>
+          <ClaimAttachmentsList attachments={claim.attachments} />
+        </div>
         <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
           <Input
             label="Approved amount"

@@ -37,6 +37,11 @@ const TRIAL_LOGIN_ACCOUNTS = [
     description: "Submit and track trial claims",
   },
   {
+    label: "Admin HR",
+    email: "adminhr@ipi-trial.com",
+    description: "Admin verification queue",
+  },
+  {
     label: "Manager",
     email: "manager@ipi-trial.com",
     description: "Review staff claims",

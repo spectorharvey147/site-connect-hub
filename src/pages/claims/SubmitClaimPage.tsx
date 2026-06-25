@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import { ClaimItemsTable } from "@/components/claims/ClaimItemsTable";
+import { ClaimAttachmentsList } from "@/components/claims/ClaimAttachmentsList";
 import { FileUpload } from "@/components/shared/FileUpload";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { FormField } from "@/components/forms/FormField";
@@ -25,7 +26,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useSelectableProjects } from "@/hooks/useSelectableProjects";
 import { projectAccessService } from "@/services/projectAccessService";
 import type { StoredFile } from "@/services/storageService";
-import type { ClaimInput, ClaimItem } from "@/types/claims";
+import type { ClaimAttachment, ClaimInput, ClaimItem } from "@/types/claims";
 import type { ProjectCostCode } from "@/types/projects";
 import { formatCurrency } from "@/utils/format";
 
@@ -239,6 +240,19 @@ export function SubmitClaimPage() {
         uploadedAt: new Date().toISOString(),
       })),
     };
+  }
+
+  function uploadedClaimAttachments(): ClaimAttachment[] {
+    return attachments.map((file) => ({
+      id: file.path,
+      fileName: file.fileName,
+      fileType: file.fileType,
+      fileSize: file.fileSize,
+      url: file.signedUrl ?? file.path,
+      bucket: file.bucket,
+      path: file.path,
+      uploadedAt: new Date().toISOString(),
+    }));
   }
 
   function submitClaim(saveAsDraft: boolean) {
@@ -485,6 +499,15 @@ export function SubmitClaimPage() {
 
           {step === 3 ? (
             <div className="space-y-5">
+              <div className="rounded-lg border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900">
+                <p className="font-semibold">Upload bills / supporting documents</p>
+                <p className="mt-1">
+                  Attach documents for the expense items listed below. If one file
+                  covers multiple expenses, upload it once and mention the bill
+                  number in the item attachment/reference field.
+                </p>
+              </div>
+              <ClaimItemsTable items={items} />
               <FileUpload
                 bucket="claim-attachments"
                 folder="claims"
@@ -517,6 +540,12 @@ export function SubmitClaimPage() {
                 <p className="mt-1 text-sm text-text-secondary">
                   Total claim value {formatCurrency(totalClaimed)}
                 </p>
+                <div className="mt-3">
+                  <ClaimAttachmentsList
+                    attachments={uploadedClaimAttachments()}
+                    emptyLabel="No documents uploaded. With-bill items need an uploaded bill or an item-level reference."
+                  />
+                </div>
               </div>
             </div>
           ) : null}
