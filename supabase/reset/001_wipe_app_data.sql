@@ -1,0 +1,121 @@
+\set ON_ERROR_STOP on
+
+begin;
+
+-- Explicit Site Connect whitelist only. Do not enumerate or truncate every
+-- public table; unrelated application tables in the same Supabase project must
+-- never be touched by this reset.
+do $$
+declare
+  table_name text;
+begin
+  foreach table_name in array array[
+    'notification_deliveries',
+    'notifications',
+    'audit_logs',
+    'app_sessions',
+    'offline_mutations',
+    'report_exports',
+    'message_reactions',
+    'message_read_receipts',
+    'message_attachments',
+    'messages',
+    'conversation_members',
+    'conversations',
+    'task_attachments',
+    'task_comments',
+    'task_activity',
+    'tasks',
+    'leave_approval_history',
+    'leave_attachments',
+    'leave_applications',
+    'attendance',
+    'dpr_photos',
+    'dpr_issues',
+    'dpr_activities',
+    'dpr_reports',
+    'daily_progress_reports',
+    'material_damage_wastage',
+    'material_consumption',
+    'material_stock_ledger',
+    'material_receipt_attachments',
+    'material_receipt_items',
+    'material_receipts',
+    'material_request_attachments',
+    'material_request_items',
+    'material_requests',
+    'materials',
+    'material_vendors',
+    'fuel_cash_expenses',
+    'fuel_stock_ledger',
+    'fuel_vendor_ledger',
+    'fuel_vendor_deposits',
+    'fuel_issue_rows',
+    'fuel_issues',
+    'fuel_receipts',
+    'fuel_contracts',
+    'fuel_vendors',
+    'machine_breakdowns',
+    'machine_log_sessions',
+    'machine_logs',
+    'machinery_contract_machines',
+    'machinery_contract_terms',
+    'machinery_contracts',
+    'machine_assets',
+    'machinery_vendors',
+    'labour_advance_deductions',
+    'casual_labour_attendance_items',
+    'casual_labour_attendance_rows',
+    'casual_labour_attendance',
+    'casual_labour_work_allocations',
+    'casual_labour_bills',
+    'labour_rosters',
+    'labour_payees',
+    'labour_contract_terms',
+    'casual_labour_workers',
+    'casual_labour_vendors',
+    'vendor_bill_items',
+    'vendor_payments',
+    'vendor_payment_vouchers',
+    'vendor_ledger_entries',
+    'vendor_ledgers',
+    'vendor_bills',
+    'vendor_contract_rate_cards',
+    'vendor_contracts',
+    'vendors',
+    'claim_approvals',
+    'claim_attachments',
+    'claim_items',
+    'payment_vouchers',
+    'employee_ledgers',
+    'payments',
+    'transactions',
+    'claims',
+    'approval_delegations',
+    'approval_matrices',
+    'hierarchy_change_logs',
+    'user_invitations',
+    'business_documents',
+    'project_user_assignments',
+    'project_department_assignments',
+    'department_project_assignments',
+    'user_project_assignments',
+    'project_cost_codes',
+    'projects',
+    'customers',
+    'company_settings',
+    'app_settings',
+    'user_profiles',
+    'departments',
+    'designations',
+    'organizations'
+  ]
+  loop
+    if to_regclass('public.' || table_name) is not null then
+      execute format('truncate table public.%I restart identity cascade', table_name);
+    end if;
+  end loop;
+end
+$$;
+
+commit;

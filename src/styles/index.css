@@ -1,0 +1,117 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --brand-blue: 0 102 204;
+  --brand-dark: 0 51 102;
+  --brand-light: 230 242 255;
+  --brand-success: 0 170 68;
+  --brand-warning: 255 153 0;
+  --brand-danger: 204 0 0;
+  --surface-page: 245 245 245;
+  --surface-card: 255 255 255;
+  --surface-border: 224 224 224;
+  --text-primary: 26 26 26;
+  --text-secondary: 102 102 102;
+  --text-tertiary: 153 153 153;
+  color: #1a1a1a;
+  background: #f5f5f5;
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.dark {
+  --brand-blue: 74 158 255;
+  --brand-dark: 10 20 32;
+  --brand-light: 22 48 76;
+  --brand-success: 67 211 112;
+  --brand-warning: 255 183 77;
+  --brand-danger: 255 107 107;
+  --surface-page: 15 23 32;
+  --surface-card: 24 34 46;
+  --surface-border: 55 70 86;
+  --text-primary: 239 244 249;
+  --text-secondary: 181 194 207;
+  --text-tertiary: 132 149 166;
+  color-scheme: dark;
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100%;
+  margin: 0;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+@layer base {
+  * {
+    @apply border-surface-border;
+  }
+
+  body {
+    @apply bg-surface-page text-text-primary;
+  }
+
+  a {
+    @apply text-brand-blue;
+  }
+}
+
+@layer utilities {
+  .dark .bg-white {
+    background-color: rgb(var(--surface-card));
+  }
+
+  .dark .bg-slate-50,
+  .dark .bg-slate-100 {
+    background-color: rgb(30 43 57);
+  }
+
+  .dark .bg-red-50,
+  .dark .bg-orange-50,
+  .dark .bg-green-50 {
+    background-color: rgb(40 45 52);
+  }
+
+  .dark .border-\[\#D0D0D0\] {
+    border-color: rgb(var(--surface-border));
+  }
+
+  .dark input,
+  .dark select,
+  .dark textarea {
+    background-color: rgb(var(--surface-card));
+    color: rgb(var(--text-primary));
+  }
+
+  .dark dialog,
+  .dark [role="dialog"] {
+    background-color: rgb(var(--surface-card));
+    color: rgb(var(--text-primary));
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
