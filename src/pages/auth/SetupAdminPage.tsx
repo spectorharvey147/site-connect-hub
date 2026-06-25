@@ -45,7 +45,7 @@ const setupAdminSchema = z
     state: z.string().trim().optional(),
     pincode: z.string().trim().optional(),
     firstName: z.string().trim().min(2, "First name is required."),
-    lastName: z.string().trim().min(2, "Last name is required."),
+    lastName: z.string().trim().min(1, "Last name is required."),
     email: z.string().trim().email("Enter a valid email."),
     phone: z.string().trim().min(8, "Phone is required."),
     employeeCode: z.string().trim().min(2, "Employee code is required."),

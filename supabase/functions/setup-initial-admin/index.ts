@@ -36,6 +36,22 @@ function required(value: string | undefined, label: string) {
   return normalized;
 }
 
+function errorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.details, record.hint, record.code]
+      .filter(Boolean)
+      .map(String);
+    if (parts.length > 0) {
+      return parts.join(" ");
+    }
+  }
+  return "Initial setup failed.";
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -133,8 +149,8 @@ Deno.serve(async (request) => {
     const { error: departmentError } = await admin.from("departments").insert({
       id: departmentId,
       organization_id: organizationId,
-      name: "Administration",
-      department_code: "ADMIN",
+      name: `${organizationCode.toUpperCase()}-Administration`,
+      department_code: `${organizationCode.toUpperCase()}-ADMIN`.slice(0, 24),
       department_name: "Administration",
       description: "Initial administration department.",
       status: "active",
@@ -221,7 +237,7 @@ Deno.serve(async (request) => {
     }
     return new Response(
       JSON.stringify({
-        error: error instanceof Error ? error.message : "Initial setup failed.",
+        error: errorMessage(error),
       }),
       {
         status: 400,
