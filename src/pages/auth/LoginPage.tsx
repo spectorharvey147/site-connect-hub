@@ -162,6 +162,12 @@ export function LoginPage() {
         <Button type="submit" className="w-full" size="lg" isLoading={isSubmitting}>
           Sign In
         </Button>
+        <div className="rounded-md border border-surface-border bg-slate-50 px-3 py-3 text-center text-sm text-text-secondary">
+          First time or reset all users?{" "}
+          <Link to="/setup-admin" className="font-semibold text-brand-blue">
+            Setup organization / create Super Admin
+          </Link>
+        </div>
       </form>
 
       {!isSupabaseConfigured ? (

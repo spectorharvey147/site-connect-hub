@@ -91,6 +91,8 @@ Deno.serve(async (request) => {
       });
     }
 
+    await admin.from("bootstrap_state").delete().eq("id", true);
+
     const { error: lockError } = await admin.from("bootstrap_state").insert({
       id: true,
       status: "running",
