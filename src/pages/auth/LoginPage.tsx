@@ -23,6 +23,36 @@ const loginSchema = z.object({
 
 type LoginFormValues = z.infer<typeof loginSchema>;
 
+const TRIAL_PASSWORD = "IpiTrial@123";
+
+const TRIAL_LOGIN_ACCOUNTS = [
+  {
+    label: "Super Admin",
+    email: "superadmin@ipi-trial.com",
+    description: "Full setup, users, workflow and final approvals",
+  },
+  {
+    label: "Site Staff",
+    email: "staff@ipi-trial.com",
+    description: "Submit and track trial claims",
+  },
+  {
+    label: "Manager",
+    email: "manager@ipi-trial.com",
+    description: "Review staff claims",
+  },
+  {
+    label: "HOD",
+    email: "hod@ipi-trial.com",
+    description: "Department approval review",
+  },
+  {
+    label: "Accounts",
+    email: "accounts@ipi-trial.com",
+    description: "Voucher and payment queue testing",
+  },
+] as const;
+
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -30,6 +60,7 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [adminExists, setAdminExists] = useState<boolean | null>(null);
+  const [quickLoginEmail, setQuickLoginEmail] = useState<string | null>(null);
   const rememberedIdentifier = useMemo(
     () => authService.getRememberedIdentifier(),
     [],
@@ -84,6 +115,29 @@ export function LoginPage() {
         error instanceof Error ? error.message : "Unable to sign in.";
       setFormError(message);
       toast.error(message);
+    }
+  }
+
+  async function quickLogin(email: string) {
+    setFormError(null);
+    setQuickLoginEmail(email);
+    setValue("identifier", email, { shouldValidate: true });
+    setValue("password", TRIAL_PASSWORD, { shouldValidate: true });
+    try {
+      await login({
+        identifier: email,
+        password: TRIAL_PASSWORD,
+        rememberMe: false,
+      });
+      toast.success("Signed in to trial account.");
+      navigate(redirectTo, { replace: true });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unable to sign in.";
+      setFormError(message);
+      toast.error(message);
+    } finally {
+      setQuickLoginEmail(null);
     }
   }
 
@@ -169,6 +223,47 @@ export function LoginPage() {
           </Link>
         </div>
       </form>
+
+      {isSupabaseConfigured ? (
+        <Card className="mt-6 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-text-primary">
+                IPI trial one-click login
+              </p>
+              <p className="mt-1 text-xs leading-5 text-text-secondary">
+                Use these test roles for Irrigation Products International Pvt Ltd.
+              </p>
+            </div>
+            <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-semibold text-brand-success">
+              Trial
+            </span>
+          </div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            {TRIAL_LOGIN_ACCOUNTS.map((account) => (
+              <button
+                key={account.email}
+                type="button"
+                className="rounded-md border border-surface-border px-3 py-2 text-left text-xs transition hover:border-brand-blue hover:bg-brand-light disabled:cursor-wait disabled:opacity-60"
+                disabled={Boolean(quickLoginEmail)}
+                onClick={() => void quickLogin(account.email)}
+              >
+                <span className="block font-semibold text-text-primary">
+                  {quickLoginEmail === account.email
+                    ? "Signing in..."
+                    : account.label}
+                </span>
+                <span className="block truncate text-text-secondary">
+                  {account.description}
+                </span>
+                <span className="mt-1 block truncate font-mono text-[11px] text-text-secondary">
+                  {account.email}
+                </span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       {!isSupabaseConfigured ? (
         <Card className="mt-6 p-4">
