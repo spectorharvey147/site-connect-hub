@@ -41,6 +41,14 @@ const claimDetailsSchema = z
   .refine((values) => values.periodTo >= values.periodFrom, {
     message: "End date must be on or after start date.",
     path: ["periodTo"],
+  })
+  .refine((values) => values.periodFrom <= new Date().toISOString().slice(0, 10), {
+    message: "Future claim periods are not allowed.",
+    path: ["periodFrom"],
+  })
+  .refine((values) => values.periodTo <= new Date().toISOString().slice(0, 10), {
+    message: "Future claim periods are not allowed.",
+    path: ["periodTo"],
   });
 
 type ClaimDetailsFormValues = z.infer<typeof claimDetailsSchema>;
@@ -188,8 +196,26 @@ export function SubmitClaimPage() {
       return;
     }
 
+    if (itemDraft.expenseDate > new Date().toISOString().slice(0, 10)) {
+      toast.error("Future expense dates are not allowed.");
+      return;
+    }
+
     if (!Number.isFinite(amount) || amount <= 0) {
       toast.error("Enter a valid amount.");
+      return;
+    }
+
+    const billReference = itemDraft.attachmentName.trim();
+    if (
+      billReference &&
+      items.some(
+        (item) =>
+          item.attachmentName?.trim().toLowerCase() ===
+          billReference.toLowerCase(),
+      )
+    ) {
+      toast.error("This bill/reference is already added in this claim.");
       return;
     }
 
@@ -205,7 +231,7 @@ export function SubmitClaimPage() {
       billType: itemDraft.billType,
       amount,
       expenseDate: itemDraft.expenseDate,
-      attachmentName: itemDraft.attachmentName.trim() || undefined,
+      attachmentName: billReference || undefined,
       remarks: itemDraft.remarks.trim() || undefined,
     };
 
@@ -358,14 +384,21 @@ export function SubmitClaimPage() {
                 </select>
               </FormField>
               <Input
+                label="Customer"
+                value={selectedProject?.customerName ?? "No customer linked to this project"}
+                readOnly
+              />
+              <Input
                 label="Period from"
                 type="date"
+                max={new Date().toISOString().slice(0, 10)}
                 error={errors.periodFrom?.message}
                 {...register("periodFrom")}
               />
               <Input
                 label="Period to"
                 type="date"
+                max={new Date().toISOString().slice(0, 10)}
                 error={errors.periodTo?.message}
                 {...register("periodTo")}
               />
@@ -417,6 +450,7 @@ export function SubmitClaimPage() {
                 <Input
                   label="Expense date"
                   type="date"
+                  max={new Date().toISOString().slice(0, 10)}
                   value={itemDraft.expenseDate}
                   onChange={(event) =>
                     updateItemDraft("expenseDate", event.target.value)
@@ -446,7 +480,8 @@ export function SubmitClaimPage() {
                   onChange={(event) => updateItemDraft("amount", event.target.value)}
                 />
                 <Input
-                  label="Attachment link/name"
+                  label="Bill no. / reference"
+                  placeholder="Invoice number, bill number or reference"
                   value={itemDraft.attachmentName}
                   onChange={(event) =>
                     updateItemDraft("attachmentName", event.target.value)
@@ -527,6 +562,9 @@ export function SubmitClaimPage() {
                 <p className="mt-2 text-sm text-text-secondary">
                   {watch("title")} · {selectedProject?.name} ·{" "}
                   {watch("periodFrom")} to {watch("periodTo")}
+                </p>
+                <p className="mt-1 text-sm text-text-secondary">
+                  Customer: {selectedProject?.customerName ?? "-"}
                 </p>
                 {watch("remarks") ? (
                   <p className="mt-2 text-sm text-text-primary">{watch("remarks")}</p>

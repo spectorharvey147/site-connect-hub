@@ -52,6 +52,53 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function normalizeBillReference(value?: string | null) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function validateClaimInput(input: ClaimInput) {
+  const todayDate = today();
+  if (input.periodFrom > todayDate || input.periodTo > todayDate) {
+    throw new Error("Future claim periods are not allowed.");
+  }
+
+  const billReferences = new Set<string>();
+  for (const item of input.items) {
+    if (item.expenseDate > todayDate) {
+      throw new Error("Future expense dates are not allowed.");
+    }
+
+    const billReference = normalizeBillReference(item.attachmentName);
+    if (billReference) {
+      if (billReferences.has(billReference)) {
+        throw new Error("Duplicate bill/reference numbers are not allowed in the same claim.");
+      }
+      billReferences.add(billReference);
+    }
+  }
+}
+
+function findLocalProcessedBillDuplicate(input: ClaimInput, claims: Claim[]) {
+  const billReferences = new Set(
+    input.items
+      .map((item) => normalizeBillReference(item.attachmentName))
+      .filter(Boolean),
+  );
+  if (billReferences.size === 0) {
+    return null;
+  }
+
+  return claims.find(
+    (claim) =>
+      claim.status !== "draft" &&
+      claim.status !== "rejected" &&
+      claim.status !== "withdrawn" &&
+      claim.items.some((item) =>
+        billReferences.has(normalizeBillReference(item.attachmentName)),
+      ),
+  );
+}
+
 function isBrowser() {
   return typeof window !== "undefined";
 }
@@ -987,6 +1034,24 @@ interface SupabaseClaimAttachmentRow {
   created_at: string;
 }
 
+interface SupabaseBillDuplicateRow {
+  attachment_link: string | null;
+  claims:
+    | {
+        claim_number?: string | null;
+        status?: ClaimStatus | null;
+      }
+    | Array<{
+        claim_number?: string | null;
+        status?: ClaimStatus | null;
+      }>
+    | null;
+}
+
+function linkedClaimFromDuplicateRow(row: SupabaseBillDuplicateRow) {
+  return Array.isArray(row.claims) ? row.claims[0] : row.claims;
+}
+
 interface SupabaseClaimApprovalRow {
   id: string;
   claim_id: string;
@@ -1071,6 +1136,44 @@ function claimsClient(): SupabaseClient {
 
 function toNumber(value: number | string | null | undefined) {
   return Number(value ?? 0);
+}
+
+async function assertNoProcessedBillDuplicates(input: ClaimInput, organizationId: string) {
+  const billReferences = new Set(
+    input.items
+      .map((item) => normalizeBillReference(item.attachmentName))
+      .filter(Boolean),
+  );
+  if (billReferences.size === 0) {
+    return;
+  }
+
+  const { data, error } = await claimsClient()
+    .from("claim_items")
+    .select("attachment_link, claims!inner(claim_number, status, organization_id)")
+    .eq("claims.organization_id", organizationId)
+    .not("attachment_link", "is", null);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const duplicate = (((data as unknown) as SupabaseBillDuplicateRow[]) ?? []).find((row) => {
+    const claim = linkedClaimFromDuplicateRow(row);
+    const status = claim?.status;
+    return (
+      billReferences.has(normalizeBillReference(row.attachment_link)) &&
+      status !== "draft" &&
+      status !== "rejected" &&
+      status !== "withdrawn"
+    );
+  });
+
+  if (duplicate) {
+    const claim = linkedClaimFromDuplicateRow(duplicate);
+    throw new Error(
+      `This bill/reference was already used in claim ${claim?.claim_number ?? "another claim"}.`,
+    );
+  }
 }
 
 function isUuid(value: string | undefined) {
@@ -1418,10 +1521,14 @@ async function insertSupabaseClaim(
   user: AppUser,
   status: ClaimStatus,
 ) {
+  validateClaimInput(input);
   const total = input.items.reduce((sum, item) => sum + item.amount, 0);
   const projectId = await dbProjectId(input.projectId);
   const createdAt = now();
   const organizationId = user.organizationId ?? DEMO_ORGANIZATION_ID;
+  if (status !== "draft") {
+    await assertNoProcessedBillDuplicates(input, organizationId);
+  }
   const approvalPath =
     status === "draft"
       ? []
@@ -1847,6 +1954,7 @@ export const claimsService = {
   },
 
   async saveDraft(input: ClaimInput, user: AppUser) {
+    validateClaimInput(input);
     if (shouldUseSupabaseClaims()) {
       const claim = await insertSupabaseClaim(input, user, "draft");
       await recordAuditLog({
@@ -1917,6 +2025,7 @@ export const claimsService = {
   },
 
   async submitClaim(input: ClaimInput, user: AppUser) {
+    validateClaimInput(input);
     if (shouldUseSupabaseClaims()) {
       const claim = await insertSupabaseClaim(
         input,
@@ -1937,6 +2046,12 @@ export const claimsService = {
     }
 
     const claims = readClaims();
+    const duplicateClaim = findLocalProcessedBillDuplicate(input, claims);
+    if (duplicateClaim) {
+      throw new Error(
+        `This bill/reference was already used in claim ${duplicateClaim.claimNumber}.`,
+      );
+    }
     const total = input.items.reduce((sum, item) => sum + item.amount, 0);
     const id = crypto.randomUUID();
     const createdAt = now();
