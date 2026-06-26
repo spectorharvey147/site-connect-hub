@@ -1,8 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { FilePlus2, Plus, Save, Send, Trash2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -25,7 +25,7 @@ import { EXPENSE_CATEGORIES, claimsService } from "@/services/claimsService";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectableProjects } from "@/hooks/useSelectableProjects";
 import { projectAccessService } from "@/services/projectAccessService";
-import type { StoredFile } from "@/services/storageService";
+import type { StorageBucket, StoredFile } from "@/services/storageService";
 import type { ClaimAttachment, ClaimInput, ClaimItem } from "@/types/claims";
 import type { ProjectCostCode } from "@/types/projects";
 import { formatCurrency } from "@/utils/format";
@@ -84,6 +84,8 @@ export function SubmitClaimPage() {
   const { user } = useAuth();
   const { projects } = useSelectableProjects(user);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const sourceClaimId = searchParams.get("fromClaim");
   const [step, setStep] = useState(1);
   const [items, setItems] = useState<ClaimItem[]>([]);
   const [attachments, setAttachments] = useState<StoredFile[]>([]);
@@ -92,6 +94,7 @@ export function SubmitClaimPage() {
   const [availableCostCodes, setAvailableCostCodes] = useState<ProjectCostCode[]>(
     [],
   );
+  const [prefilledClaimId, setPrefilledClaimId] = useState<string | null>(null);
 
   const {
     register,
@@ -115,12 +118,64 @@ export function SubmitClaimPage() {
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId,
   );
+  const filteredCostCodes = useMemo(
+    () =>
+      availableCostCodes.filter((costCode) => {
+        const categoryAllowed =
+          costCode.expenseCategoryIds.length === 0 ||
+          !itemDraft.categoryId ||
+          costCode.expenseCategoryIds.includes(itemDraft.categoryId);
+        const customerAllowed =
+          costCode.customerIds.length === 0 ||
+          !selectedProject?.customerId ||
+          costCode.customerIds.includes(selectedProject.customerId);
+        return categoryAllowed && customerAllowed;
+      }),
+    [availableCostCodes, itemDraft.categoryId, selectedProject?.customerId],
+  );
 
   useEffect(() => {
     if (!selectedProjectId && projects[0]) {
       setValue("projectId", projects[0].id);
     }
   }, [projects, selectedProjectId, setValue]);
+
+  useEffect(() => {
+    if (!user || !sourceClaimId || prefilledClaimId === sourceClaimId) {
+      return;
+    }
+    void claimsService.getClaim(sourceClaimId, user).then((claim) => {
+      if (!claim) {
+        toast.error("Unable to load the claim for resubmission.");
+        return;
+      }
+      setValue("title", `${claim.title} - Resubmission`);
+      setValue("projectId", claim.projectId);
+      setValue("periodFrom", claim.periodFrom);
+      setValue("periodTo", claim.periodTo);
+      setValue("remarks", claim.remarks ?? "");
+      setItems(
+        claim.items.map((item) => ({
+          ...item,
+          id: crypto.randomUUID(),
+        })),
+      );
+      setAttachments(
+        claim.attachments
+          .filter((attachment) => attachment.bucket && attachment.path)
+          .map((attachment) => ({
+            bucket: attachment.bucket as StorageBucket,
+            path: attachment.path!,
+            fileName: attachment.fileName,
+            fileType: attachment.fileType,
+            fileSize: attachment.fileSize,
+            signedUrl: attachment.url,
+          })),
+      );
+      setPrefilledClaimId(sourceClaimId);
+      toast.success("Returned claim loaded. Edit details and submit again.");
+    });
+  }, [prefilledClaimId, sourceClaimId, setValue, user]);
 
   useEffect(() => {
     let active = true;
@@ -145,6 +200,15 @@ export function SubmitClaimPage() {
       active = false;
     };
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    setItemDraft((current) => ({
+      ...current,
+      costCodeId: filteredCostCodes.some((row) => row.id === current.costCodeId)
+        ? current.costCodeId
+        : filteredCostCodes[0]?.id ?? "",
+    }));
+  }, [filteredCostCodes]);
 
   if (!user) {
     return null;
@@ -181,7 +245,7 @@ export function SubmitClaimPage() {
     const category = EXPENSE_CATEGORIES.find(
       (item) => item.id === itemDraft.categoryId,
     );
-    const costCode = availableCostCodes.find(
+    const costCode = filteredCostCodes.find(
       (item) => item.id === itemDraft.costCodeId,
     );
     const amount = Number(itemDraft.amount);
@@ -238,7 +302,7 @@ export function SubmitClaimPage() {
     setItems((current) => [...current, nextItem]);
     setItemDraft({
       ...emptyItemDraft,
-      costCodeId: availableCostCodes[0]?.id ?? "",
+      costCodeId: filteredCostCodes[0]?.id ?? "",
       expenseDate: itemDraft.expenseDate,
     });
   }
@@ -440,7 +504,7 @@ export function SubmitClaimPage() {
                     }
                   >
                     <option value="">Select cost code</option>
-                    {availableCostCodes.map((costCode) => (
+                    {filteredCostCodes.map((costCode) => (
                       <option key={costCode.id} value={costCode.id}>
                         {costCode.code} - {costCode.name}
                       </option>

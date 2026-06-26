@@ -93,6 +93,8 @@ export interface ProjectCostCode {
   code: string;
   name: string;
   expenseType: ProjectExpenseType;
+  customerIds: string[];
+  expenseCategoryIds: string[];
   description?: string;
   budgetAllocated: number;
   responsibleDepartmentId?: string;
@@ -106,6 +108,8 @@ export interface ProjectCostCodeInput {
   code: string;
   name: string;
   expenseType: ProjectExpenseType;
+  customerIds?: string[];
+  expenseCategoryIds?: string[];
   description?: string;
   budgetAllocated: number;
   responsibleDepartmentId?: string;

@@ -92,6 +92,7 @@ function findLocalProcessedBillDuplicate(input: ClaimInput, claims: Claim[]) {
     (claim) =>
       claim.status !== "draft" &&
       claim.status !== "rejected" &&
+      claim.status !== "changes_requested" &&
       claim.status !== "withdrawn" &&
       claim.items.some((item) =>
         billReferences.has(normalizeBillReference(item.attachmentName)),
@@ -1164,6 +1165,7 @@ async function assertNoProcessedBillDuplicates(input: ClaimInput, organizationId
       billReferences.has(normalizeBillReference(row.attachment_link)) &&
       status !== "draft" &&
       status !== "rejected" &&
+      status !== "changes_requested" &&
       status !== "withdrawn"
     );
   });

@@ -131,6 +131,17 @@ function ReviewCard({
     if (!user) {
       return;
     }
+    if (
+      ["changes_requested", "rejected"].includes(decision) &&
+      !remarks.trim()
+    ) {
+      toast.error(
+        decision === "changes_requested"
+          ? "Enter correction details before requesting changes."
+          : "Enter rejection reason before rejecting the claim.",
+      );
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -197,7 +208,7 @@ function ReviewCard({
             label="Remarks"
             value={remarks}
             onChange={(event) => setRemarks(event.target.value)}
-            placeholder="Add verification or approval notes"
+            placeholder="For Request Changes or Reject, enter clear reason/details for the user."
           />
         </div>
         <div className="flex flex-wrap gap-2">

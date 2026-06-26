@@ -1,4 +1,4 @@
-import { ReceiptText } from "lucide-react";
+import { PencilLine, ReceiptText } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -59,6 +59,8 @@ export function ClaimDetailPage() {
   }
 
   const routeForAction = getActionRoute(user, claim);
+  const canResubmit =
+    claim.status === "changes_requested" && claim.userId === user.id;
 
   return (
     <>
@@ -71,13 +73,22 @@ export function ClaimDetailPage() {
           { label: claim.claimNumber },
         ]}
         action={
-          routeForAction ? (
-            <Button type="button" leftIcon={<ReceiptText className="h-4 w-4" />}>
-              <Link className="text-white" to={routeForAction}>
-                Open Action Queue
-              </Link>
-            </Button>
-          ) : null
+          <div className="flex flex-wrap gap-2">
+            {canResubmit ? (
+              <Button type="button" leftIcon={<PencilLine className="h-4 w-4" />}>
+                <Link className="text-white" to={`/claims/submit?fromClaim=${claim.id}`}>
+                  Edit & resubmit
+                </Link>
+              </Button>
+            ) : null}
+            {routeForAction ? (
+              <Button type="button" leftIcon={<ReceiptText className="h-4 w-4" />}>
+                <Link className="text-white" to={routeForAction}>
+                  Open Action Queue
+                </Link>
+              </Button>
+            ) : null}
+          </div>
         }
       />
 

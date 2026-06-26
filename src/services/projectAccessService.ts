@@ -29,6 +29,12 @@ function mapProject(row: Row): ProjectMaster {
   };
 }
 
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 export const projectAccessService = {
   async getSelectableProjectsForUser(
     actor: AppUser,
@@ -109,6 +115,8 @@ export const projectAccessService = {
           code: costCode.code,
           name: costCode.name,
           expenseType: costCode.name as ProjectCostCode["expenseType"],
+          customerIds: [],
+          expenseCategoryIds: [],
           budgetAllocated: 0,
           status: "active",
         }),
@@ -130,6 +138,8 @@ export const projectAccessService = {
       code: String(row.code),
       name: String(row.name),
       expenseType: row.expense_type as ProjectCostCode["expenseType"],
+      customerIds: stringArray(row.customer_ids),
+      expenseCategoryIds: stringArray(row.expense_category_ids),
       description: row.description ? String(row.description) : undefined,
       budgetAllocated: Number(row.budget_allocated ?? 0),
       responsibleDepartmentId: row.responsible_department_id

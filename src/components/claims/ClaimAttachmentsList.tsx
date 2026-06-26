@@ -1,6 +1,8 @@
 import { Download, ExternalLink, FileText } from "lucide-react";
 
 import { Button } from "@/components/ui/Button";
+import { storageService } from "@/services/storageService";
+import type { StorageBucket } from "@/services/storageService";
 import type { ClaimAttachment } from "@/types/claims";
 
 export function ClaimAttachmentsList({
@@ -12,6 +14,21 @@ export function ClaimAttachmentsList({
 }) {
   if (attachments.length === 0) {
     return <p className="text-sm text-text-secondary">{emptyLabel}</p>;
+  }
+
+  async function preview(attachment: ClaimAttachment) {
+    let url = attachment.url;
+    if (attachment.bucket && attachment.path) {
+      try {
+        url = await storageService.createSignedUrl(
+          attachment.bucket as StorageBucket,
+          attachment.path,
+        );
+      } catch {
+        url = attachment.url;
+      }
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   }
 
   return (
@@ -37,7 +54,7 @@ export function ClaimAttachmentsList({
             variant="ghost"
             size="icon"
             title="Preview / download"
-            onClick={() => window.open(attachment.url, "_blank", "noopener,noreferrer")}
+            onClick={() => void preview(attachment)}
           >
             {attachment.fileType.startsWith("image/") ? (
               <ExternalLink className="h-4 w-4" />

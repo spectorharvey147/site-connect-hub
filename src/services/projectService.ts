@@ -35,6 +35,12 @@ function numberValue(value: unknown) {
   return Number(value ?? 0);
 }
 
+function stringArray(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
 async function projectCounts(projectId: string) {
   const [users, departments, costCodes] = await Promise.all([
     client()
@@ -315,6 +321,8 @@ export const projectService = {
       code: String(row.code),
       name: String(row.name),
       expenseType: row.expense_type as ProjectCostCode["expenseType"],
+      customerIds: stringArray(row.customer_ids),
+      expenseCategoryIds: stringArray(row.expense_category_ids),
       description: text(row.description),
       budgetAllocated: numberValue(row.budget_allocated),
       responsibleDepartmentId: text(row.responsible_department_id),
@@ -343,6 +351,8 @@ export const projectService = {
       code: input.code.trim().toUpperCase(),
       name: input.name.trim(),
       expense_type: input.expenseType,
+      customer_ids: input.customerIds ?? [],
+      expense_category_ids: input.expenseCategoryIds ?? [],
       description: input.description?.trim() || null,
       budget_allocated: input.budgetAllocated,
       responsible_department_id: input.responsibleDepartmentId || null,
