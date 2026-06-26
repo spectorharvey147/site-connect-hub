@@ -90,6 +90,7 @@ export interface ProjectCostCode {
   id: string;
   organizationId: string;
   projectId: string;
+  commonCostCodeId?: string;
   code: string;
   name: string;
   expenseType: ProjectExpenseType;
@@ -105,6 +106,7 @@ export interface ProjectCostCode {
 export interface ProjectCostCodeInput {
   organizationId: string;
   projectId: string;
+  commonCostCodeId?: string;
   code: string;
   name: string;
   expenseType: ProjectExpenseType;
@@ -113,6 +115,29 @@ export interface ProjectCostCodeInput {
   description?: string;
   budgetAllocated: number;
   responsibleDepartmentId?: string;
+  status: MasterStatus;
+}
+
+export interface CommonCostCode {
+  id: string;
+  organizationId: string;
+  code: string;
+  name: string;
+  expenseType: ProjectExpenseType;
+  customerIds: string[];
+  expenseCategoryIds: string[];
+  description?: string;
+  status: MasterStatus;
+}
+
+export interface CommonCostCodeInput {
+  organizationId: string;
+  code: string;
+  name: string;
+  expenseType: ProjectExpenseType;
+  customerIds?: string[];
+  expenseCategoryIds?: string[];
+  description?: string;
   status: MasterStatus;
 }
 

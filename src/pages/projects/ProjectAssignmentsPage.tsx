@@ -18,6 +18,7 @@ import { userHierarchyService } from "@/services/userHierarchyService";
 import type { AppUser } from "@/types/auth";
 import type { Department } from "@/types/organization";
 import type {
+  CommonCostCode,
   Customer,
   ProjectCostCode,
   ProjectDepartmentAssignment,
@@ -40,6 +41,7 @@ export function ProjectAssignmentsPage({
   const [users, setUsers] = useState<AppUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [commonCostCodes, setCommonCostCodes] = useState<CommonCostCode[]>([]);
   const [userRows, setUserRows] = useState<ProjectUserAssignment[]>([]);
   const [departmentRows, setDepartmentRows] = useState<ProjectDepartmentAssignment[]>([]);
   const [costCodes, setCostCodes] = useState<ProjectCostCode[]>([]);
@@ -50,6 +52,7 @@ export function ProjectAssignmentsPage({
   const [departmentType, setDepartmentType] =
     useState<"primary" | "support">("support");
   const [costCode, setCostCode] = useState("");
+  const [commonCostCodeId, setCommonCostCodeId] = useState("");
   const [costCodeName, setCostCodeName] = useState("");
   const [expenseType, setExpenseType] = useState<ProjectExpenseType>("Other");
   const [customerIds, setCustomerIds] = useState<string[]>([]);
@@ -61,16 +64,18 @@ export function ProjectAssignmentsPage({
     if (!user?.organizationId || !projectId) {
       return;
     }
-    const [projectRow, userList, departmentList, customerList] = await Promise.all([
+    const [projectRow, userList, departmentList, customerList, commonRows] = await Promise.all([
       projectService.getProjectById(projectId),
       userHierarchyService.listUsers(user.organizationId),
       departmentService.getDepartments(user.organizationId),
       projectService.getCustomers(user.organizationId),
+      projectService.getCommonCostCodes(user.organizationId),
     ]);
     setProject(projectRow);
     setUsers(userList.filter((candidate) => candidate.status === "active"));
     setDepartments(departmentList.filter((department) => department.status === "active"));
     setCustomers(customerList.filter((customer) => customer.status === "active"));
+    setCommonCostCodes(commonRows.filter((item) => item.status === "active"));
     if (mode === "users") {
       setUserRows(await projectService.getProjectUsers(projectId));
     } else if (mode === "departments") {
@@ -127,6 +132,7 @@ export function ProjectAssignmentsPage({
           {
             organizationId: project.organizationId,
             projectId,
+            commonCostCodeId: commonCostCodeId || undefined,
             code: costCode,
             name: costCodeName,
             expenseType,
@@ -140,6 +146,7 @@ export function ProjectAssignmentsPage({
           user,
         );
         setCostCode("");
+        setCommonCostCodeId("");
         setCostCodeName("");
         setCustomerIds([]);
         setExpenseCategoryIds([]);
@@ -194,6 +201,9 @@ export function ProjectAssignmentsPage({
               />
             ) : (
               <CostCodeFields
+                commonCostCodes={commonCostCodes}
+                commonCostCodeId={commonCostCodeId}
+                setCommonCostCodeId={setCommonCostCodeId}
                 costCode={costCode}
                 setCostCode={setCostCode}
                 costCodeName={costCodeName}
@@ -356,6 +366,9 @@ function DepartmentAssignmentFields({
 }
 
 function CostCodeFields({
+  commonCostCodes,
+  commonCostCodeId,
+  setCommonCostCodeId,
   costCode,
   setCostCode,
   costCodeName,
@@ -375,6 +388,9 @@ function CostCodeFields({
   description,
   setDescription,
 }: {
+  commonCostCodes: CommonCostCode[];
+  commonCostCodeId: string;
+  setCommonCostCodeId: (value: string) => void;
   costCode: string;
   setCostCode: (value: string) => void;
   costCodeName: string;
@@ -394,8 +410,36 @@ function CostCodeFields({
   description: string;
   setDescription: (value: string) => void;
 }) {
+  function selectCommonCode(value: string) {
+    setCommonCostCodeId(value);
+    const commonCode = commonCostCodes.find((item) => item.id === value);
+    if (!commonCode) {
+      return;
+    }
+    setCostCode(commonCode.code);
+    setCostCodeName(commonCode.name);
+    setExpenseType(commonCode.expenseType);
+    setCustomerIds(commonCode.customerIds);
+    setExpenseCategoryIds(commonCode.expenseCategoryIds);
+    setDescription(commonCode.description ?? "");
+  }
+
   return (
     <>
+      <FormField label="Link common cost code">
+        <select
+          className={selectClass}
+          value={commonCostCodeId}
+          onChange={(event) => selectCommonCode(event.target.value)}
+        >
+          <option value="">No common code / project-specific only</option>
+          {commonCostCodes.map((item) => (
+            <option key={item.id} value={item.id}>
+              {item.code} - {item.name}
+            </option>
+          ))}
+        </select>
+      </FormField>
       <Input label="Cost Code" value={costCode} onChange={(event) => setCostCode(event.target.value)} />
       <Input
         label="Cost Code Name"

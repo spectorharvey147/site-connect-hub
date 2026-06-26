@@ -3,6 +3,8 @@ import { recordAuditLog } from "@/services/auditService";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import type { AppUser } from "@/types/auth";
 import type {
+  CommonCostCode,
+  CommonCostCodeInput,
   Customer,
   ProjectCostCode,
   ProjectCostCodeInput,
@@ -318,6 +320,7 @@ export const projectService = {
       id: String(row.id),
       organizationId: String(row.organization_id),
       projectId: String(row.project_id),
+      commonCostCodeId: text(row.common_cost_code_id),
       code: String(row.code),
       name: String(row.name),
       expenseType: row.expense_type as ProjectCostCode["expenseType"],
@@ -348,6 +351,7 @@ export const projectService = {
     const payload = {
       organization_id: input.organizationId,
       project_id: input.projectId,
+      common_cost_code_id: input.commonCostCodeId || null,
       code: input.code.trim().toUpperCase(),
       name: input.name.trim(),
       expense_type: input.expenseType,
@@ -376,6 +380,67 @@ export const projectService = {
       action: costCodeId ? "cost_code.updated" : "cost_code.created",
       entityType: "project_cost_code",
       entityId: costCodeId,
+      newValues: input as unknown as Record<string, unknown>,
+    });
+  },
+
+  async getCommonCostCodes(organizationId: string): Promise<CommonCostCode[]> {
+    if (!isSupabaseConfigured || !supabase) {
+      return [];
+    }
+    const { data, error } = await client()
+      .from("common_cost_codes")
+      .select("*")
+      .eq("organization_id", organizationId)
+      .order("code");
+    if (error) {
+      throw new Error(error.message);
+    }
+    return ((data as Row[] | null) ?? []).map((row) => ({
+      id: String(row.id),
+      organizationId: String(row.organization_id),
+      code: String(row.code),
+      name: String(row.name),
+      expenseType: row.expense_type as CommonCostCode["expenseType"],
+      customerIds: stringArray(row.customer_ids),
+      expenseCategoryIds: stringArray(row.expense_category_ids),
+      description: text(row.description),
+      status: row.status === "inactive" ? "inactive" : "active",
+    }));
+  },
+
+  async saveCommonCostCode(
+    input: CommonCostCodeInput,
+    actor: AppUser,
+    commonCostCodeId?: string,
+  ) {
+    assertCanManage(actor);
+    if (!input.organizationId || !input.code.trim() || !input.name.trim()) {
+      throw new Error("Organization, common cost code and name are required.");
+    }
+    const payload = {
+      organization_id: input.organizationId,
+      code: input.code.trim().toUpperCase(),
+      name: input.name.trim(),
+      expense_type: input.expenseType,
+      customer_ids: input.customerIds ?? [],
+      expense_category_ids: input.expenseCategoryIds ?? [],
+      description: input.description?.trim() || null,
+      status: input.status,
+      updated_by: actor.id,
+    };
+    const mutation = commonCostCodeId
+      ? client().from("common_cost_codes").update(payload).eq("id", commonCostCodeId)
+      : client().from("common_cost_codes").insert({ ...payload, created_by: actor.id });
+    const { error } = await mutation;
+    if (error) {
+      throw new Error(error.message);
+    }
+    await recordAuditLog({
+      userId: actor.id,
+      action: commonCostCodeId ? "common_cost_code.updated" : "common_cost_code.created",
+      entityType: "common_cost_code",
+      entityId: commonCostCodeId,
       newValues: input as unknown as Record<string, unknown>,
     });
   },

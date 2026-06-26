@@ -135,6 +135,9 @@ export const projectAccessService = {
       id: String(row.id),
       organizationId: String(row.organization_id),
       projectId: String(row.project_id),
+      commonCostCodeId: row.common_cost_code_id
+        ? String(row.common_cost_code_id)
+        : undefined,
       code: String(row.code),
       name: String(row.name),
       expenseType: row.expense_type as ProjectCostCode["expenseType"],
