@@ -210,6 +210,11 @@ const EmailSettingsPage = lazy(() =>
     default: module.EmailSettingsPage,
   })),
 );
+const ExpenseCategoriesPage = lazy(() =>
+  import("@/pages/settings/ExpenseCategoriesPage").then((module) => ({
+    default: module.ExpenseCategoriesPage,
+  })),
+);
 const DesignationsPage = lazy(() =>
   import("@/pages/settings/DesignationsPage").then((module) => ({
     default: module.DesignationsPage,
@@ -850,6 +855,14 @@ export function AppRoutes() {
           element={
             <ProtectedRoute allowedRoles={["super_admin"]}>
               <EmailSettingsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="settings/expense-categories"
+          element={
+            <ProtectedRoute allowedRoles={["admin_hr", "super_admin"]}>
+              <ExpenseCategoriesPage />
             </ProtectedRoute>
           }
         />

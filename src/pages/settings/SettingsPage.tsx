@@ -91,6 +91,7 @@ export function SettingsPage() {
           { label: "Designations", to: "/settings/designations" },
           { label: "Approval Matrix", to: "/settings/approval-matrix" },
           { label: "Delegations", to: "/settings/delegations" },
+          { label: "Claim Expense Categories", to: "/settings/expense-categories" },
           { label: "Project Cost Codes", to: "/settings/project-cost-codes" },
           ...(user.role === "super_admin"
             ? [{ label: "Email Settings", to: "/settings/email" }]

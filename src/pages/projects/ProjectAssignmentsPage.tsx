@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { EXPENSE_CATEGORIES } from "@/constants/claims";
 import { useAuth } from "@/hooks/useAuth";
 import { departmentService } from "@/services/departmentService";
+import { expenseCategoryService } from "@/services/expenseCategoryService";
 import { projectService } from "@/services/projectService";
 import { userHierarchyService } from "@/services/userHierarchyService";
 import type { AppUser } from "@/types/auth";
+import type { ExpenseCategory } from "@/types/claims";
 import type { Department } from "@/types/organization";
 import type {
   CommonCostCode,
@@ -41,6 +42,7 @@ export function ProjectAssignmentsPage({
   const [users, setUsers] = useState<AppUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   const [commonCostCodes, setCommonCostCodes] = useState<CommonCostCode[]>([]);
   const [userRows, setUserRows] = useState<ProjectUserAssignment[]>([]);
   const [departmentRows, setDepartmentRows] = useState<ProjectDepartmentAssignment[]>([]);
@@ -55,6 +57,7 @@ export function ProjectAssignmentsPage({
   const [commonCostCodeId, setCommonCostCodeId] = useState("");
   const [costCodeName, setCostCodeName] = useState("");
   const [expenseType, setExpenseType] = useState<ProjectExpenseType>("Other");
+  const [codeType, setCodeType] = useState<"unique" | "common">("unique");
   const [customerIds, setCustomerIds] = useState<string[]>([]);
   const [expenseCategoryIds, setExpenseCategoryIds] = useState<string[]>([]);
   const [budget, setBudget] = useState(0);
@@ -64,17 +67,19 @@ export function ProjectAssignmentsPage({
     if (!user?.organizationId || !projectId) {
       return;
     }
-    const [projectRow, userList, departmentList, customerList, commonRows] = await Promise.all([
+    const [projectRow, userList, departmentList, customerList, commonRows, categoryRows] = await Promise.all([
       projectService.getProjectById(projectId),
       userHierarchyService.listUsers(user.organizationId),
       departmentService.getDepartments(user.organizationId),
       projectService.getCustomers(user.organizationId),
       projectService.getCommonCostCodes(user.organizationId),
+      expenseCategoryService.list(),
     ]);
     setProject(projectRow);
     setUsers(userList.filter((candidate) => candidate.status === "active"));
     setDepartments(departmentList.filter((department) => department.status === "active"));
     setCustomers(customerList.filter((customer) => customer.status === "active"));
+    setExpenseCategories(categoryRows.filter((category) => category.status === "active"));
     setCommonCostCodes(commonRows.filter((item) => item.status === "active"));
     if (mode === "users") {
       setUserRows(await projectService.getProjectUsers(projectId));
@@ -136,6 +141,7 @@ export function ProjectAssignmentsPage({
             code: costCode,
             name: costCodeName,
             expenseType,
+            codeType,
             customerIds,
             expenseCategoryIds,
             description,
@@ -148,6 +154,7 @@ export function ProjectAssignmentsPage({
         setCostCode("");
         setCommonCostCodeId("");
         setCostCodeName("");
+        setCodeType("unique");
         setCustomerIds([]);
         setExpenseCategoryIds([]);
       }
@@ -210,11 +217,14 @@ export function ProjectAssignmentsPage({
                 setCostCodeName={setCostCodeName}
                 expenseType={expenseType}
                 setExpenseType={setExpenseType}
+                codeType={codeType}
+                setCodeType={setCodeType}
                 customers={customers}
                 customerIds={customerIds}
                 setCustomerIds={setCustomerIds}
                 expenseCategoryIds={expenseCategoryIds}
                 setExpenseCategoryIds={setExpenseCategoryIds}
+                expenseCategories={expenseCategories}
                 budget={budget}
                 setBudget={setBudget}
                 departments={departments}
@@ -375,11 +385,14 @@ function CostCodeFields({
   setCostCodeName,
   expenseType,
   setExpenseType,
+  codeType,
+  setCodeType,
   customers,
   customerIds,
   setCustomerIds,
   expenseCategoryIds,
   setExpenseCategoryIds,
+  expenseCategories,
   budget,
   setBudget,
   departments,
@@ -397,11 +410,14 @@ function CostCodeFields({
   setCostCodeName: (value: string) => void;
   expenseType: ProjectExpenseType;
   setExpenseType: (value: ProjectExpenseType) => void;
+  codeType: "unique" | "common";
+  setCodeType: (value: "unique" | "common") => void;
   customers: Customer[];
   customerIds: string[];
   setCustomerIds: (values: string[]) => void;
   expenseCategoryIds: string[];
   setExpenseCategoryIds: (values: string[]) => void;
+  expenseCategories: ExpenseCategory[];
   budget: number;
   setBudget: (value: number) => void;
   departments: Department[];
@@ -419,6 +435,7 @@ function CostCodeFields({
     setCostCode(commonCode.code);
     setCostCodeName(commonCode.name);
     setExpenseType(commonCode.expenseType);
+    setCodeType("common");
     setCustomerIds(commonCode.customerIds);
     setExpenseCategoryIds(commonCode.expenseCategoryIds);
     setDescription(commonCode.description ?? "");
@@ -441,6 +458,16 @@ function CostCodeFields({
         </select>
       </FormField>
       <Input label="Cost Code" value={costCode} onChange={(event) => setCostCode(event.target.value)} />
+      <FormField label="Cost Code Type">
+        <select
+          className={selectClass}
+          value={codeType}
+          onChange={(event) => setCodeType(event.target.value as "unique" | "common")}
+        >
+          <option value="unique">Unique - project/customer specific</option>
+          <option value="common">Common - linked to multiple customers</option>
+        </select>
+      </FormField>
       <Input
         label="Cost Code Name"
         value={costCodeName}
@@ -469,8 +496,12 @@ function CostCodeFields({
         </select>
       </FormField>
       <MultiSelect
-        label="Linked customers"
-        help="Leave empty if this cost code is valid for all customers on the project."
+        label={codeType === "common" ? "Common customers" : "Linked customers"}
+        help={
+          codeType === "common"
+            ? "Select customers that can use this common cost code in claim submission."
+            : "Optional for unique codes. Leave empty if it is valid only for the project customer."
+        }
         options={customers.map((customer) => ({
           value: customer.id,
           label: `${customer.customerName} (${customer.customerCode})`,
@@ -481,7 +512,7 @@ function CostCodeFields({
       <MultiSelect
         label="Allowed claim categories"
         help="Leave empty to allow every claim category for this cost code."
-        options={EXPENSE_CATEGORIES.map((category) => ({
+        options={expenseCategories.map((category) => ({
           value: category.id,
           label: category.name,
         }))}

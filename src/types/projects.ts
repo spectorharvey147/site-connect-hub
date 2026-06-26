@@ -54,6 +54,7 @@ export interface ProjectMaster {
   projectManagerName?: string;
   primaryDepartmentId?: string;
   primaryDepartmentName?: string;
+  isCommonProject?: boolean;
   description?: string;
   status: MasterStatus;
   assignedUserCount: number;
@@ -82,6 +83,7 @@ export interface ProjectInput {
   projectBudget: number;
   projectManagerId?: string;
   primaryDepartmentId?: string;
+  isCommonProject?: boolean;
   description?: string;
   status: MasterStatus;
 }
@@ -94,6 +96,7 @@ export interface ProjectCostCode {
   code: string;
   name: string;
   expenseType: ProjectExpenseType;
+  codeType: "unique" | "common";
   customerIds: string[];
   expenseCategoryIds: string[];
   description?: string;
@@ -110,6 +113,7 @@ export interface ProjectCostCodeInput {
   code: string;
   name: string;
   expenseType: ProjectExpenseType;
+  codeType?: "unique" | "common";
   customerIds?: string[];
   expenseCategoryIds?: string[];
   description?: string;

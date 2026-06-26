@@ -21,19 +21,22 @@ import {
 } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { EXPENSE_CATEGORIES, claimsService } from "@/services/claimsService";
+import { claimsService } from "@/services/claimsService";
+import { expenseCategoryService } from "@/services/expenseCategoryService";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectableProjects } from "@/hooks/useSelectableProjects";
 import { projectAccessService } from "@/services/projectAccessService";
+import { projectService } from "@/services/projectService";
 import type { StorageBucket, StoredFile } from "@/services/storageService";
-import type { ClaimAttachment, ClaimInput, ClaimItem } from "@/types/claims";
-import type { ProjectCostCode } from "@/types/projects";
+import type { ClaimAttachment, ClaimInput, ClaimItem, ExpenseCategory } from "@/types/claims";
+import type { Customer, ProjectCostCode } from "@/types/projects";
 import { formatCurrency } from "@/utils/format";
 
 const claimDetailsSchema = z
   .object({
     title: z.string().trim().min(4, "Claim title is required."),
     projectId: z.string().trim().min(1, "Project is required."),
+    customerId: z.string().optional(),
     periodFrom: z.string().trim().min(1, "Start date is required."),
     periodTo: z.string().trim().min(1, "End date is required."),
     remarks: z.string().optional(),
@@ -94,6 +97,8 @@ export function SubmitClaimPage() {
   const [availableCostCodes, setAvailableCostCodes] = useState<ProjectCostCode[]>(
     [],
   );
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([]);
   const [prefilledClaimId, setPrefilledClaimId] = useState<string | null>(null);
 
   const {
@@ -108,6 +113,7 @@ export function SubmitClaimPage() {
     defaultValues: {
       title: "",
       projectId: "",
+      customerId: "",
       periodFrom: new Date().toISOString().slice(0, 10),
       periodTo: new Date().toISOString().slice(0, 10),
       remarks: "",
@@ -115,23 +121,29 @@ export function SubmitClaimPage() {
   });
 
   const selectedProjectId = watch("projectId");
+  const selectedCustomerId = watch("customerId");
   const selectedProject = projects.find(
     (project) => project.id === selectedProjectId,
   );
+  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
+  const isCommonProject = Boolean(selectedProject?.isCommonProject);
   const filteredCostCodes = useMemo(
     () =>
       availableCostCodes.filter((costCode) => {
+        if (isCommonProject && !selectedCustomerId) {
+          return false;
+        }
         const categoryAllowed =
           costCode.expenseCategoryIds.length === 0 ||
           !itemDraft.categoryId ||
           costCode.expenseCategoryIds.includes(itemDraft.categoryId);
         const customerAllowed =
           costCode.customerIds.length === 0 ||
-          !selectedProject?.customerId ||
-          costCode.customerIds.includes(selectedProject.customerId);
+          !selectedCustomerId ||
+          costCode.customerIds.includes(selectedCustomerId);
         return categoryAllowed && customerAllowed;
       }),
-    [availableCostCodes, itemDraft.categoryId, selectedProject?.customerId],
+    [availableCostCodes, isCommonProject, itemDraft.categoryId, selectedCustomerId],
   );
 
   useEffect(() => {
@@ -139,6 +151,30 @@ export function SubmitClaimPage() {
       setValue("projectId", projects[0].id);
     }
   }, [projects, selectedProjectId, setValue]);
+
+  useEffect(() => {
+    if (!user?.organizationId) {
+      return;
+    }
+    void Promise.all([
+      projectService.getCustomers(user.organizationId),
+      expenseCategoryService.list(),
+    ]).then(([customerRows, categoryRows]) => {
+      setCustomers(customerRows.filter((customer) => customer.status === "active"));
+      setExpenseCategories(categoryRows.filter((category) => category.status === "active"));
+    });
+  }, [user?.organizationId]);
+
+  useEffect(() => {
+    if (!selectedProject) {
+      return;
+    }
+    if (!selectedProject.isCommonProject) {
+      setValue("customerId", selectedProject.customerId ?? "");
+      return;
+    }
+    setValue("customerId", "");
+  }, [selectedProject, setValue]);
 
   useEffect(() => {
     if (!user || !sourceClaimId || prefilledClaimId === sourceClaimId) {
@@ -151,6 +187,7 @@ export function SubmitClaimPage() {
       }
       setValue("title", `${claim.title} - Resubmission`);
       setValue("projectId", claim.projectId);
+      setValue("customerId", claim.customerId ?? "");
       setValue("periodFrom", claim.periodFrom);
       setValue("periodTo", claim.periodTo);
       setValue("remarks", claim.remarks ?? "");
@@ -242,7 +279,7 @@ export function SubmitClaimPage() {
   }
 
   function addItem() {
-    const category = EXPENSE_CATEGORIES.find(
+    const category = expenseCategories.find(
       (item) => item.id === itemDraft.categoryId,
     );
     const costCode = filteredCostCodes.find(
@@ -250,8 +287,8 @@ export function SubmitClaimPage() {
     );
     const amount = Number(itemDraft.amount);
 
-    if (!selectedProject || !category || !costCode) {
-      toast.error("Select project, category and cost code.");
+    if (!selectedProject || (isCommonProject && !selectedCustomerId) || !category || !costCode) {
+      toast.error("Select project, customer, category and cost code.");
       return;
     }
 
@@ -315,6 +352,8 @@ export function SubmitClaimPage() {
     return {
       title: values.title.trim(),
       projectId: values.projectId,
+      customerId: isCommonProject ? values.customerId : selectedProject?.customerId,
+      customerName: isCommonProject ? selectedCustomer?.customerName : selectedProject?.customerName,
       periodFrom: values.periodFrom,
       periodTo: values.periodTo,
       remarks: values.remarks?.trim() || undefined,
@@ -449,9 +488,21 @@ export function SubmitClaimPage() {
               </FormField>
               <Input
                 label="Customer"
-                value={selectedProject?.customerName ?? "No customer linked to this project"}
+                value={isCommonProject ? "Select customer below" : selectedProject?.customerName ?? "No customer linked to this project"}
                 readOnly
               />
+              {isCommonProject ? (
+                <FormField label="Customer" error={errors.customerId?.message}>
+                  <select className={selectClass} {...register("customerId")}>
+                    <option value="">Select customer</option>
+                    {customers.map((customer) => (
+                      <option key={customer.id} value={customer.id}>
+                        {customer.customerName}
+                      </option>
+                    ))}
+                  </select>
+                </FormField>
+              ) : null}
               <Input
                 label="Period from"
                 type="date"
@@ -488,7 +539,7 @@ export function SubmitClaimPage() {
                     }
                   >
                     <option value="">Select category</option>
-                    {EXPENSE_CATEGORIES.map((category) => (
+                    {expenseCategories.map((category) => (
                       <option key={category.id} value={category.id}>
                         {category.name}
                       </option>
@@ -628,7 +679,7 @@ export function SubmitClaimPage() {
                   {watch("periodFrom")} to {watch("periodTo")}
                 </p>
                 <p className="mt-1 text-sm text-text-secondary">
-                  Customer: {selectedProject?.customerName ?? "-"}
+                  Customer: {(isCommonProject ? selectedCustomer?.customerName : selectedProject?.customerName) ?? "-"}
                 </p>
                 {watch("remarks") ? (
                   <p className="mt-2 text-sm text-text-primary">{watch("remarks")}</p>

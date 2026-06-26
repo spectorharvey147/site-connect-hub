@@ -208,6 +208,7 @@ export interface Claim {
   userEmail: string;
   projectId: string;
   projectName: string;
+  customerId?: string;
   customerName?: string;
   periodFrom: string;
   periodTo: string;
@@ -229,6 +230,8 @@ export interface Claim {
 export interface ClaimInput {
   title: string;
   projectId: string;
+  customerId?: string;
+  customerName?: string;
   periodFrom: string;
   periodTo: string;
   remarks?: string;

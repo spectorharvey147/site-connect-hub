@@ -13,6 +13,9 @@ function mapProject(row: Row): ProjectMaster {
     name: String(row.name),
     customerId: row.customer_id ? String(row.customer_id) : undefined,
     customerName: row.customer_name ? String(row.customer_name) : undefined,
+    isCommonProject:
+      row.is_common_project === true ||
+      String(row.name).toLowerCase().includes("common project"),
     location: row.location ? String(row.location) : undefined,
     city: row.city ? String(row.city) : undefined,
     state: row.state ? String(row.state) : undefined,
@@ -115,6 +118,7 @@ export const projectAccessService = {
           code: costCode.code,
           name: costCode.name,
           expenseType: costCode.name as ProjectCostCode["expenseType"],
+          codeType: "unique",
           customerIds: [],
           expenseCategoryIds: [],
           budgetAllocated: 0,
@@ -141,6 +145,7 @@ export const projectAccessService = {
       code: String(row.code),
       name: String(row.name),
       expenseType: row.expense_type as ProjectCostCode["expenseType"],
+      codeType: row.code_type === "common" ? "common" : "unique",
       customerIds: stringArray(row.customer_ids),
       expenseCategoryIds: stringArray(row.expense_category_ids),
       description: row.description ? String(row.description) : undefined,

@@ -116,6 +116,9 @@ async function mapProject(row: Row): Promise<ProjectMaster> {
     primaryDepartmentName: text(
       (department.data as Row | null)?.department_name,
     ),
+    isCommonProject:
+      row.is_common_project === true ||
+      String(row.name).toLowerCase().includes("common project"),
     description: text(row.description),
     status: row.status === "inactive" ? "inactive" : "active",
     ...counts,
@@ -156,6 +159,7 @@ function projectPayload(input: ProjectInput, actor: AppUser) {
     project_budget: input.projectBudget,
     project_manager_id: input.projectManagerId || null,
     primary_department_id: input.primaryDepartmentId || null,
+    is_common_project: input.isCommonProject ?? false,
     description: input.description?.trim() || null,
     status: input.status,
     updated_by: actor.id,
@@ -324,6 +328,7 @@ export const projectService = {
       code: String(row.code),
       name: String(row.name),
       expenseType: row.expense_type as ProjectCostCode["expenseType"],
+      codeType: row.code_type === "common" ? "common" : "unique",
       customerIds: stringArray(row.customer_ids),
       expenseCategoryIds: stringArray(row.expense_category_ids),
       description: text(row.description),
@@ -355,6 +360,7 @@ export const projectService = {
       code: input.code.trim().toUpperCase(),
       name: input.name.trim(),
       expense_type: input.expenseType,
+      code_type: input.codeType ?? "unique",
       customer_ids: input.customerIds ?? [],
       expense_category_ids: input.expenseCategoryIds ?? [],
       description: input.description?.trim() || null,

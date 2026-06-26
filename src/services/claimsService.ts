@@ -974,6 +974,7 @@ interface SupabaseProjectRow {
   code: string | null;
   name: string | null;
   location: string | null;
+  customer_id: string | null;
   customer_name: string | null;
 }
 
@@ -995,6 +996,8 @@ interface SupabaseClaimRow {
   title: string;
   user_id: string;
   project_id: string | null;
+  customer_id?: string | null;
+  customer_name?: string | null;
   period_from: string;
   period_to: string;
   status: ClaimStatus;
@@ -1260,7 +1263,7 @@ async function fetchProjects(ids: Array<string | null | undefined>) {
   }
   const { data, error } = await claimsClient()
     .from("projects")
-    .select("id, code, name, location, customer_name")
+    .select("id, code, name, location, customer_id, customer_name")
     .in("id", uniqueIds);
   if (error) {
     throw new Error(error.message);
@@ -1415,7 +1418,8 @@ async function mapSupabaseClaims(rows: SupabaseClaimRow[]): Promise<Claim[]> {
       userEmail: profile?.email ?? "",
       projectId: mappedProjectId,
       projectName: project?.name ?? "Project",
-      customerName: project?.customer_name ?? undefined,
+      customerId: row.customer_id ?? project?.customer_id ?? undefined,
+      customerName: row.customer_name ?? project?.customer_name ?? undefined,
       periodFrom: row.period_from,
       periodTo: row.period_to,
       status: row.status,
@@ -1564,6 +1568,8 @@ async function insertSupabaseClaim(
       reporting_manager_id: user.reportingManagerId ?? user.managerId ?? null,
       hod_user_id: user.hodUserId ?? null,
       project_id: projectId,
+      customer_id: input.customerId ?? null,
+      customer_name: input.customerName?.trim() || null,
       period_from: input.periodFrom,
       period_to: input.periodTo,
       status,
@@ -2000,7 +2006,8 @@ export const claimsService = {
       userEmail: user.email,
       projectId: input.projectId,
       projectName: projectName(input.projectId),
-      customerName: undefined,
+      customerId: input.customerId,
+      customerName: input.customerName,
       periodFrom: input.periodFrom,
       periodTo: input.periodTo,
       status: "draft",
@@ -2084,7 +2091,8 @@ export const claimsService = {
       userEmail: user.email,
       projectId: input.projectId,
       projectName: projectName(input.projectId),
-      customerName: undefined,
+      customerId: input.customerId,
+      customerName: input.customerName,
       periodFrom: input.periodFrom,
       periodTo: input.periodTo,
       status: "admin_verification_pending",
