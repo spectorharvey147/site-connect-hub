@@ -94,6 +94,7 @@ export function ClaimDetailPage() {
               <SummaryRow label="Status" value={<ClaimStatusBadge status={claim.status} />} />
               <SummaryRow label="Employee" value={claim.userName} />
               <SummaryRow label="Project" value={claim.projectName} />
+              <SummaryRow label="Customer" value={claim.customerName ?? "-"} />
               <SummaryRow label="Period" value={`${claim.periodFrom} to ${claim.periodTo}`} />
               <SummaryRow label="Claimed" value={formatCurrency(claim.totalClaimed)} />
               <SummaryRow label="Verified" value={formatCurrency(claim.totalVerified)} />

@@ -926,6 +926,7 @@ interface SupabaseProjectRow {
   code: string | null;
   name: string | null;
   location: string | null;
+  customer_name: string | null;
 }
 
 interface SupabaseCostCodeRow {
@@ -1154,7 +1155,7 @@ async function fetchProjects(ids: Array<string | null | undefined>) {
   }
   const { data, error } = await claimsClient()
     .from("projects")
-    .select("id, code, name, location")
+    .select("id, code, name, location, customer_name")
     .in("id", uniqueIds);
   if (error) {
     throw new Error(error.message);
@@ -1309,6 +1310,7 @@ async function mapSupabaseClaims(rows: SupabaseClaimRow[]): Promise<Claim[]> {
       userEmail: profile?.email ?? "",
       projectId: mappedProjectId,
       projectName: project?.name ?? "Project",
+      customerName: project?.customer_name ?? undefined,
       periodFrom: row.period_from,
       periodTo: row.period_to,
       status: row.status,
@@ -1888,6 +1890,7 @@ export const claimsService = {
       userEmail: user.email,
       projectId: input.projectId,
       projectName: projectName(input.projectId),
+      customerName: undefined,
       periodFrom: input.periodFrom,
       periodTo: input.periodTo,
       status: "draft",
@@ -1964,6 +1967,7 @@ export const claimsService = {
       userEmail: user.email,
       projectId: input.projectId,
       projectName: projectName(input.projectId),
+      customerName: undefined,
       periodFrom: input.periodFrom,
       periodTo: input.periodTo,
       status: "admin_verification_pending",

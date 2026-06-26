@@ -166,6 +166,11 @@ function ReviewCard({
               {claim.userName} · {claim.projectName} ·{" "}
               {formatCurrency(claim.totalClaimed)}
             </p>
+            {claim.customerName ? (
+              <p className="mt-1 text-xs font-medium text-text-secondary">
+                Customer: {claim.customerName}
+              </p>
+            ) : null}
           </div>
           <ClaimStatusBadge status={claim.status} />
         </div>

@@ -50,6 +50,7 @@ export interface ProjectOption {
   code: string;
   name: string;
   location: string;
+  customerName?: string;
 }
 
 export interface CostCodeOption {
@@ -207,6 +208,7 @@ export interface Claim {
   userEmail: string;
   projectId: string;
   projectName: string;
+  customerName?: string;
   periodFrom: string;
   periodTo: string;
   status: ClaimStatus;

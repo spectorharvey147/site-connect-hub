@@ -60,6 +60,11 @@ export function ClaimsTable({
                     {claim.userName}
                   </span>
                   {claim.projectName}
+                  {claim.customerName ? (
+                    <span className="mt-1 block text-xs text-text-secondary">
+                      Customer: {claim.customerName}
+                    </span>
+                  ) : null}
                 </td>
                 <td className="px-4 py-3">
                   <ClaimStatusBadge status={claim.status} />
