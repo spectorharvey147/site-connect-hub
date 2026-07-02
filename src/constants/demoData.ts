@@ -1,11 +1,7 @@
 import type { AppUser } from "@/types/auth";
 import type { DashboardSummary } from "@/types/dashboard";
 
-export interface DemoUserRecord extends AppUser {
-  password: string;
-}
-
-export const DEMO_PASSWORD = "SiteConnect@123";
+export type DemoUserRecord = AppUser;
 
 export const DEMO_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000101";
 
@@ -45,7 +41,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "permanent",
     status: "active",
     projectIds: ["project-metro", "project-tower"],
-    password: DEMO_PASSWORD,
   },
   {
     id: "00000000-0000-4000-8000-000000000002",
@@ -65,7 +60,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "permanent",
     status: "active",
     projectIds: ["project-metro", "project-tower"],
-    password: DEMO_PASSWORD,
   },
   {
     id: "00000000-0000-4000-8000-000000000003",
@@ -88,7 +82,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "permanent",
     status: "active",
     projectIds: ["project-metro"],
-    password: DEMO_PASSWORD,
   },
   {
     id: "00000000-0000-4000-8000-000000000004",
@@ -109,7 +102,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "permanent",
     status: "active",
     projectIds: ["project-metro", "project-tower"],
-    password: DEMO_PASSWORD,
   },
   {
     id: "00000000-0000-4000-8000-000000000005",
@@ -132,7 +124,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "permanent",
     status: "active",
     projectIds: ["project-metro"],
-    password: DEMO_PASSWORD,
   },
   {
     id: "00000000-0000-4000-8000-000000000006",
@@ -155,7 +146,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "permanent",
     status: "active",
     projectIds: ["project-tower"],
-    password: DEMO_PASSWORD,
   },
   {
     id: "00000000-0000-4000-8000-000000000007",
@@ -178,7 +168,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "contract",
     status: "active",
     projectIds: ["project-metro"],
-    password: DEMO_PASSWORD,
   },
   {
     id: "00000000-0000-4000-8000-000000000008",
@@ -199,7 +188,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "permanent",
     status: "active",
     projectIds: ["project-metro", "project-tower"],
-    password: DEMO_PASSWORD,
   },
   {
     id: "00000000-0000-4000-8000-000000000009",
@@ -220,7 +208,6 @@ export const DEMO_USERS: DemoUserRecord[] = [
     employmentType: "permanent",
     status: "active",
     projectIds: ["project-metro", "project-tower"],
-    password: DEMO_PASSWORD,
   },
 ];
 
