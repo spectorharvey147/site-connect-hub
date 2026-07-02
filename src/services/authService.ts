@@ -1,9 +1,3 @@
-import {
-  DEMO_USERS,
-  toAppUser,
-  type DemoUserRecord,
-} from "@/constants/demoData";
-import { profileService } from "@/services/profileService";
 import { recordAuditLog } from "@/services/auditService";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import type {
@@ -45,11 +39,7 @@ interface SupabaseProfile {
   status: AppUser["status"];
 }
 
-function createDemoToken() {
-  return `demo-${crypto.randomUUID()}`;
-}
-
-function createSession(user: AppUser, accessToken = createDemoToken()) {
+function createSession(user: AppUser, accessToken: string) {
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   return {
     user,
@@ -68,15 +58,6 @@ function clearPersistedSession() {
 
 function normalizeIdentifier(identifier: string) {
   return identifier.trim().toLowerCase();
-}
-
-function findDemoUser(identifier: string): DemoUserRecord | undefined {
-  const normalizedIdentifier = normalizeIdentifier(identifier);
-  return DEMO_USERS.find(
-    (user) =>
-      user.email.toLowerCase() === normalizedIdentifier ||
-      user.employeeId.toLowerCase() === normalizedIdentifier,
-  );
 }
 
 function isSessionFresh(session: AuthSession) {
@@ -264,11 +245,8 @@ export const authService = {
       return null;
     }
 
-    const session = readPersistedSession();
-    if (!session) {
-      clearPersistedSession();
-    }
-    return session;
+    clearPersistedSession();
+    return null;
   },
 
   async login(credentials: LoginCredentials): Promise<AuthSession> {
@@ -303,26 +281,7 @@ export const authService = {
       return session;
     }
 
-    const demoUser = findDemoUser(identifier);
-    if (!demoUser || demoUser.password !== credentials.password) {
-      throw new Error("Invalid email, employee ID or password.");
-    }
-
-    if (demoUser.status !== "active") {
-      throw new Error("This account is not active.");
-    }
-
-    const user = profileService.getDemoProfile(toAppUser(demoUser));
-    const session = createSession(user);
-    persistSession(session);
-    rememberIdentifier(credentials.identifier, credentials.rememberMe);
-    await recordAuditLog({
-      userId: user.id,
-      action: "auth.login",
-      entityType: "session",
-      newValues: { provider: "demo" },
-    });
-    return session;
+    throw new Error("Production authentication is not configured.");
   },
 
   async logout(userId?: string) {
@@ -427,9 +386,7 @@ export const authService = {
       return data === true;
     }
 
-    return DEMO_USERS.some((user) =>
-      ["admin_hr", "super_admin"].includes(user.role),
-    );
+    throw new Error("Production authentication is not configured.");
   },
 
   async createInitialAdmin(input: InitialAdminInput): Promise<AuthSession> {
@@ -476,35 +433,6 @@ export const authService = {
       return createdSession;
     }
 
-    const user: AppUser = {
-      id: crypto.randomUUID(),
-      organizationId: crypto.randomUUID(),
-      employeeId: input.employeeCode,
-      employeeCode: input.employeeCode,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      fullName: `${input.firstName} ${input.lastName}`.trim(),
-      email: input.email,
-      phone: input.phone,
-      role: "super_admin",
-      department: "Administration",
-      employmentType: "permanent",
-      status: "active",
-      projectIds: [],
-    };
-    const session = createSession(user);
-    persistSession(session);
-    await recordAuditLog({
-      userId: user.id,
-      action: "auth.initial_admin_created",
-      entityType: "user",
-      entityId: user.id,
-      newValues: {
-        organizationName: input.organizationName,
-        supportEmail: input.supportEmail,
-        defaultWorkflow: input.defaultWorkflow,
-      },
-    });
-    return session;
+    throw new Error("Production authentication is not configured.");
   },
 };

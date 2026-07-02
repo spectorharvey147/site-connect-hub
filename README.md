@@ -14,38 +14,20 @@ npm run test
 
 ## Environment
 
-Copy `.env.example` to `.env.local` and add Supabase keys when available:
+Copy `.env.example` to `.env.local` and add the production Supabase keys:
 
 ```bash
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 ```
 
-If Supabase variables are empty, the app runs in local demo mode.
-
-## Demo Logins
-
-All demo users use this password:
-
-```txt
-SiteConnect@123
-```
-
-| Role | Email | Employee ID |
-| --- | --- | --- |
-| Super Admin / Finance Head | `super@siteconnect.local` | `SC-SUP-001` |
-| Admin / HR | `admin@siteconnect.local` | `SC-ADM-001` |
-| Operations HOD | `hod.ops@siteconnect.local` | `SC-HOD-001` |
-| Finance HOD | `hod.finance@siteconnect.local` | `SC-HOD-002` |
-| Manager | `manager@siteconnect.local` | `SC-MGR-001` |
-| Accounts Officer | `accounts@siteconnect.local` | `SC-ACC-001` |
-| Site Staff / User | `site@siteconnect.local` | `SC-USR-001` |
+The application does not provide demo or fallback authentication. Login remains disabled until these variables are configured.
 
 ## Phase 1 Scope
 
 - Vite + React 18 + TypeScript scaffold
 - Tailwind design tokens matching the Site Connect specification
-- Supabase client with demo fallback when env vars are not configured
+- Supabase-only production authentication
 - Login, forgot password, reset password and first admin setup pages
 - Local session handling, remember-me support and logout
 - Role-based protected routes and module visibility
