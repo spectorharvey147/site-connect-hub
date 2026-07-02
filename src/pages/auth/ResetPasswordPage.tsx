@@ -2,7 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Eye, EyeOff, LockKeyhole } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -45,11 +45,9 @@ function getStrength(password: string) {
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const [showPassword, setShowPassword] = useState(false);
   const [sessionReady, setSessionReady] = useState(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
-  const token = searchParams.get("token") ?? "";
 
   const {
     register,
@@ -98,8 +96,8 @@ export function ResetPasswordPage() {
 
   async function onSubmit(values: ResetPasswordFormValues) {
     try {
-      await authService.resetPassword({ token, password: values.password });
-      toast.success("Password reset complete.");
+      await authService.resetPassword({ token: "", password: values.password });
+      toast.success("Password saved. Your account is active.");
       navigate("/login", { replace: true });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Unable to reset password.");

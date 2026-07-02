@@ -43,6 +43,13 @@ function stringArray(value: unknown) {
     : [];
 }
 
+function workManagerMappings(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is { workType: string; managerId: string; managerName?: string } =>
+    Boolean(item && typeof item === "object" && "workType" in item && "managerId" in item),
+  );
+}
+
 async function projectCounts(projectId: string) {
   const [users, departments, costCodes] = await Promise.all([
     client()
@@ -112,6 +119,7 @@ async function mapProject(row: Row): Promise<ProjectMaster> {
     projectBudget: numberValue(row.project_budget),
     projectManagerId: text(row.project_manager_id),
     projectManagerName: text((manager.data as Row | null)?.full_name),
+    workManagerMappings: workManagerMappings(row.work_manager_mappings),
     primaryDepartmentId: text(row.primary_department_id),
     primaryDepartmentName: text(
       (department.data as Row | null)?.department_name,
@@ -158,6 +166,9 @@ function projectPayload(input: ProjectInput, actor: AppUser) {
     end_date: input.endDate || null,
     project_budget: input.projectBudget,
     project_manager_id: input.projectManagerId || null,
+    work_manager_mappings: input.workManagerMappings
+      .filter((item) => item.workType.trim() && item.managerId)
+      .map((item) => ({ workType: item.workType.trim(), managerId: item.managerId, managerName: item.managerName })),
     primary_department_id: input.primaryDepartmentId || null,
     is_common_project: input.isCommonProject ?? false,
     description: input.description?.trim() || null,
@@ -178,6 +189,7 @@ export const projectService = {
           location: project.location,
           geofenceRadius: 250,
           projectBudget: 0,
+          workManagerMappings: [],
           status: "active",
           assignedUserCount: 0,
           assignedDepartmentCount: 0,

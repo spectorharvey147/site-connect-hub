@@ -1,8 +1,9 @@
-import { ExternalLink, FileUp, Trash2 } from "lucide-react";
+import { FileUp, Trash2 } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/Button";
+import { ClaimAttachmentsList } from "@/components/claims/ClaimAttachmentsList";
 import { useAuth } from "@/hooks/useAuth";
 import {
   storageService,
@@ -114,31 +115,14 @@ export function FileUpload({
           onChange={(event) => void upload(Array.from(event.target.files ?? []))}
         />
       </div>
-      {value.map((file) => (
-        <div
-          key={file.path}
-          className="flex items-center justify-between rounded-md border border-surface-border bg-white p-3"
-        >
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-text-primary">{file.fileName}</p>
-            <p className="text-xs text-text-secondary">{Math.round(file.fileSize / 1024)} KB</p>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              title="Preview file"
-              onClick={() => window.open(file.signedUrl ?? file.path, "_blank", "noopener,noreferrer")}
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
-            <Button type="button" variant="ghost" size="icon" title="Delete file" onClick={() => void remove(file)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
+      {value.length ? (
+        <div className="space-y-3">
+          <ClaimAttachmentsList attachments={value.map((file) => ({ id: file.path, fileName: file.fileName, fileType: file.fileType, fileSize: file.fileSize, url: file.signedUrl ?? "", bucket: file.bucket, path: file.path, uploadedAt: new Date().toISOString() }))} />
+          <div className="flex flex-wrap gap-2">
+            {value.map((file) => <Button key={file.path} type="button" size="sm" variant="secondary" leftIcon={<Trash2 className="h-3.5 w-3.5" />} onClick={() => void remove(file)}>Remove {file.fileName}</Button>)}
           </div>
         </div>
-      ))}
+      ) : null}
     </div>
   );
 }

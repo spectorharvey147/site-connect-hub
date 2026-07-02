@@ -89,10 +89,13 @@ export function SettingsPage() {
           { label: "Customers", to: "/settings/customers" },
           { label: "Departments", to: "/settings/departments" },
           { label: "Designations", to: "/settings/designations" },
+          { label: "Work Types", to: "/settings/work-types" },
           { label: "Approval Matrix", to: "/settings/approval-matrix" },
           { label: "Delegations", to: "/settings/delegations" },
           { label: "Claim Expense Categories", to: "/settings/expense-categories" },
           { label: "Project Cost Codes", to: "/settings/project-cost-codes" },
+          ...(user.role === "super_admin" ? [{ label: "SAP Mapping", to: "/settings/sap-mapping" }] : []),
+          { label: "Signatures", to: "/settings/signatures" },
           ...(user.role === "super_admin"
             ? [{ label: "Email Settings", to: "/settings/email" }]
             : []),

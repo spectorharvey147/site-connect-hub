@@ -12,6 +12,10 @@ vi.mock("@/services/claimsService", () => ({
   },
 }));
 
+vi.mock("@/services/claimAccountsService", () => ({
+  claimAccountsService: { list: vi.fn().mockResolvedValue([]) },
+}));
+
 const user = {
   id: "accounts-1", employeeId: "A1", fullName: "Accounts User",
   email: "accounts@example.com", role: "accounts_officer" as const,

@@ -1,5 +1,6 @@
 import { Download } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Bar,
   BarChart,
@@ -73,6 +74,7 @@ export function ClaimReportsPage() {
       />
 
       <div className="space-y-6">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">{[["Claim Ageing","/reports/claims/ageing"],["Approval Delay","/reports/claims/approval-delay"],["Project Cost","/reports/claims/project-cost"],["Employee Ledger","/reports/claims/employee-ledger"],["Deductions","/reports/claims/deductions"],["Payment Pending","/reports/accounts/payment-pending"],["SAP Export","/reports/accounts/sap-export"]].map(([label,to])=><Link key={to} to={to} className="rounded-lg border border-surface-border bg-white p-4 font-semibold hover:border-brand-blue">{label}</Link>)}</div>
         {summary ? <ClaimSummaryCards summary={summary} /> : null}
         <Card>
           <CardHeader>

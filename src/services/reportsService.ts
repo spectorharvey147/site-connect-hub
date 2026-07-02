@@ -8,6 +8,7 @@ import { machineryService } from "@/services/machineryService";
 import { materialsService } from "@/services/materialsService";
 import { taskService } from "@/services/taskService";
 import { vendorsService } from "@/services/vendorsService";
+import { supabase } from "@/services/supabaseClient";
 import type { AppUser } from "@/types/auth";
 import type {
   DetailedReport,
@@ -54,6 +55,9 @@ export const REPORT_DEFINITIONS: ReportDefinition[] = [
   ["claim-approval-delay", "Claim Approval Delay", "Claims"],
   ["employee-claim-ledger", "Employee Claim Ledger", "Claims"],
   ["project-claim-cost", "Project-wise Claim Cost", "Claims"],
+  ["claim-deductions", "Claim Deductions", "Claims"],
+  ["accounts-payment-pending", "Payment Pending", "Accounts"],
+  ["accounts-sap-export", "SAP Export", "Accounts"],
   ["attendance-monthly", "Attendance Monthly Register", "Attendance"],
   ["department-attendance", "Department Attendance", "Attendance"],
   ["late-absent", "Late / Absent Report", "Attendance"],
@@ -94,7 +98,20 @@ export const reportsService = {
     let headers: string[] = [];
     let rows: Array<Array<string | number>> = [];
 
-    if (key.startsWith("claim") || key === "project-claim-cost") {
+    const financeViews:Record<string,{view:string;headers:string[];fields:string[]}>= {
+      "claim-ageing":{view:"claim_ageing_report",headers:["Claim Number","Employee","Project","Submitted Date","Current Status","Pending With","Ageing Days","Amount"],fields:["claim_number","employee","project","submitted_at","status","pending_with","ageing_days","amount"]},
+      "claim-approval-delay":{view:"claim_approval_delay_report",headers:["Claim Number","Employee","Admin Hours","Manager Hours","HOD Hours","Super Admin Hours","Accounts Hours"],fields:["claim_number","employee","admin_hours","manager_hours","hod_hours","super_admin_hours","accounts_hours"]},
+      "project-claim-cost":{view:"claim_project_cost_report",headers:["Project","Customer","Cost Code","Expense Category","With Bill","Without Bill","Approved Amount","Deduction","Paid Amount"],fields:["project","customer","cost_code","expense_category","with_bill","without_bill","approved_amount","deduction","paid_amount"]},
+      "employee-claim-ledger":{view:"claim_employee_ledger_report",headers:["Employee","Opening","Advance","Submitted","Approved","Deducted","Paid","Balance"],fields:["employee","opening","advance","submitted","approved","deducted","paid","balance"]},
+      "claim-deductions":{view:"claim_deduction_report",headers:["Claim","Employee","Original Amount","Approved Amount","Deduction","Reason","Deducted By"],fields:["claim_number","employee","original_amount","approved_amount","deduction","deduction_reason","deducted_by"]},
+      "accounts-payment-pending":{view:"claim_payment_pending_report",headers:["Voucher","Employee","Net Payable","SAP Status","Payment Status","Ageing Days"],fields:["voucher_number","employee","net_payable_amount","sap_status","payment_status","ageing_days"]},
+      "accounts-sap-export":{view:"claim_sap_export_report",headers:["Batch","Export Date","Voucher","Claim","Amount","SAP GL","Cost Center","Exported By","Status"],fields:["batch","export_date","voucher_number","claim_number","amount","sap_gl_code","sap_cost_center","exported_by","status"]},
+    };
+    const finance=financeViews[key];
+    if(finance&&supabase){
+      if(key.startsWith("accounts-")&&!['accounts_officer','super_admin'].includes(user.role))throw new Error("Accounts report permission denied.");
+      const{data,error}=await supabase.from(finance.view).select("*");if(error)throw new Error(error.message);headers=finance.headers;rows=(data??[]).map(row=>finance.fields.map(field=>{const value=(row as Record<string,unknown>)[field];return typeof value==="number"?value:String(value??"")}));
+    } else if (key.startsWith("claim") || key === "project-claim-cost") {
       const claims = await claimsService.listClaims(user);
       headers = ["Claim", "Employee", "Project", "Submitted", "Claimed", "Approved", "Status"];
       rows = claims.map((claim) => [

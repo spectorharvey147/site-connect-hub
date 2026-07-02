@@ -1,4 +1,4 @@
-import { Building2, Save } from "lucide-react";
+import { Building2, ImageUp, Save, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -27,6 +27,8 @@ function toInput(organization: Organization): OrganizationInput {
     currency: organization.currency,
     timezone: organization.timezone,
     logoUrl: organization.logoUrl,
+    voucherLogoPosition: organization.voucherLogoPosition ?? "left",
+    voucherLogoSize: organization.voucherLogoSize ?? 18,
   };
 }
 
@@ -35,6 +37,7 @@ export function OrganizationSettingsPage() {
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [form, setForm] = useState<OrganizationInput | null>(null);
   const [saving, setSaving] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     void organizationService.getCurrentOrganization().then((result) => {
@@ -164,6 +167,29 @@ export function OrganizationSettingsPage() {
               className="md:col-span-2"
               onChange={(event) => update("address", event.target.value)}
             />
+            <div className="space-y-3 rounded-md border border-surface-border p-4 md:col-span-2">
+              <p className="text-sm font-semibold">Payment Voucher Logo</p>
+              {form.logoUrl ? <img src={form.logoUrl} alt="Company logo preview" className="h-20 w-32 rounded border bg-white object-contain p-2" /> : <p className="text-sm text-text-secondary">No company logo uploaded.</p>}
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-brand-blue px-3 py-2 text-sm font-semibold text-white">
+                  <ImageUp className="h-4 w-4" /> {uploadingLogo ? "Uploading..." : "Upload / Replace Logo"}
+                  <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" disabled={uploadingLogo} onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    setUploadingLogo(true);
+                    void organizationService.uploadOrganizationLogo(organization.id, file, user)
+                      .then((url) => { update("logoUrl", url); toast.success("Logo uploaded. Save organization settings to apply it."); })
+                      .catch((error) => toast.error(error instanceof Error ? error.message : "Logo upload failed."))
+                      .finally(() => setUploadingLogo(false));
+                  }} />
+                </label>
+                {form.logoUrl ? <Button type="button" variant="outline" leftIcon={<Trash2 className="h-4 w-4" />} onClick={() => update("logoUrl", "")}>Remove Logo</Button> : null}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold">Placement<select className="mt-1 h-11 w-full rounded-md border border-surface-border bg-white px-3" value={form.voucherLogoPosition ?? "left"} onChange={(event) => update("voucherLogoPosition", event.target.value as "left" | "right" | "hidden")}><option value="left">Top left</option><option value="right">Top right</option><option value="hidden">Hide on vouchers</option></select></label>
+                <Input label="Logo size (mm)" type="number" min={12} max={28} value={form.voucherLogoSize ?? 18} onChange={(event) => update("voucherLogoSize", Number(event.target.value))} />
+              </div>
+            </div>
           </div>
           <Button
             type="button"

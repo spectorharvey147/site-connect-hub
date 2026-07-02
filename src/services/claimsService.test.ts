@@ -119,7 +119,17 @@ describe("claimsService workflow", () => {
     await claimsService.reviewClaim({ claimId: claim.id, stage: "admin_verification", decision: "approved", remarks: "" }, admin);
     await claimsService.reviewClaim({ claimId: claim.id, stage: "manager_approval", decision: "approved", remarks: "" }, manager);
     const approved = await claimsService.reviewClaim({ claimId: claim.id, stage: "final_approval", decision: "approved", remarks: "" }, hod);
-    expect(approved.status).toBe("approved_for_payment");
+    expect(approved.status).toBe("accounts_verification_pending");
+
+    const accounts = userByEmail("accounts@siteconnect.local");
+    const verified = await claimsService.applyAccountsVerification(approved.id, accounts, {
+      action: "verify",
+      payableAmount: approved.totalApproved,
+      paymentPriority: "normal",
+      requiresSapExport: false,
+      remarks: "Ready for settlement.",
+    });
+    expect(verified?.status).toBe("voucher_pending");
   });
 
   it("requires Super Admin after HOD for a high-value claim", async () => {
@@ -136,6 +146,6 @@ describe("claimsService workflow", () => {
     const hodApproved = await claimsService.reviewClaim({ claimId: claim.id, stage: "final_approval", decision: "approved", remarks: "" }, hod);
     expect(hodApproved.status).toBe("final_approval_pending");
     const final = await claimsService.reviewClaim({ claimId: claim.id, stage: "final_approval", decision: "approved", remarks: "" }, superAdmin);
-    expect(final.status).toBe("approved_for_payment");
+    expect(final.status).toBe("accounts_verification_pending");
   });
 });

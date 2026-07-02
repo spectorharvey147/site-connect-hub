@@ -174,7 +174,7 @@ export const MODULES: ModuleDefinition[] = [
     key: "accounts",
     name: "Accounts",
     path: "/accounts",
-    description: "Payment queue, vouchers, ledgers and reconciliation.",
+    description: "Claim verification, vouchers, SAP exports, ledgers and reconciliation.",
     icon: WalletCards,
     allowedRoles: ["accounts_officer", "super_admin"],
     accent: "green",
@@ -323,8 +323,8 @@ export const MODULE_LANDING_CONTENT: Record<ModuleKey, ModuleLandingContent> = {
   accounts: {
     title: "Accounts",
     description: "Approved payment processing, ledgers and reconciliation.",
-    primaryActions: ["Open payment queue", "Generate voucher", "Reconcile"],
-    workflow: ["Queue", "Pay", "Reconcile"],
+    primaryActions: ["Verify claims", "Generate voucher", "Export SAP", "Reconcile"],
+    workflow: ["Verify", "Voucher", "SAP", "Pay", "Reconcile"],
   },
   reports: {
     title: "Reports & Analytics",

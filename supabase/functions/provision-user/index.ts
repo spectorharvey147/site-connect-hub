@@ -33,6 +33,26 @@ Deno.serve(async (request) => {
   }
 
   const input = await request.json();
+  if (input.action === "resend_invite") {
+    const userId = String(input.userId ?? "").trim();
+    const { data: target } = await admin
+      .from("user_profiles")
+      .select("id, email, organization_id, status")
+      .eq("id", userId)
+      .eq("organization_id", callerProfile.organization_id)
+      .maybeSingle();
+    if (!target?.email) {
+      return response(404, { error: "Invited user was not found." });
+    }
+    if (target.status !== "invited") {
+      return response(400, { error: "Only invited users can receive a new setup link." });
+    }
+    const { error: inviteError } = await admin.auth.resetPasswordForEmail(target.email, {
+      redirectTo: `${request.headers.get("origin") ?? ""}/reset-password`,
+    });
+    if (inviteError) return response(400, { error: inviteError.message });
+    return response(200, { message: "Invitation setup link resent." });
+  }
   const email = String(input.email ?? "").trim().toLowerCase();
   const employeeCode = String(input.employeeCode ?? "").trim().toUpperCase();
   if (!email || !employeeCode || !input.firstName || !input.lastName || !input.departmentId) {
@@ -101,9 +121,10 @@ Deno.serve(async (request) => {
       if (assignmentError) throw assignmentError;
     }
     if (!input.password) {
-      await admin.auth.resetPasswordForEmail(email, {
+      const { error: inviteError } = await admin.auth.resetPasswordForEmail(email, {
         redirectTo: `${request.headers.get("origin") ?? ""}/reset-password`,
       });
+      if (inviteError) throw inviteError;
     }
     return response(201, { id: authUserId });
   } catch (error) {

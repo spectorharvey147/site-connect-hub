@@ -41,4 +41,5 @@ describe("role-based module access", () => {
     expect(visibleKeys).not.toContain("settings");
     expect(visibleKeys).not.toContain("users");
   });
+  it("limits the Accounts module to Accounts and Super Admin",()=>{const accounts=MODULES.find(module=>module.key==="accounts")!;expect(canAccessModule("accounts_officer",accounts)).toBe(true);expect(canAccessModule("super_admin",accounts)).toBe(true);expect(canAccessModule("manager",accounts)).toBe(false);expect(canAccessModule("admin_hr",accounts)).toBe(false);});
 });

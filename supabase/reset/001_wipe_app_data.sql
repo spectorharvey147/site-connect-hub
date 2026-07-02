@@ -10,6 +10,22 @@ declare
   table_name text;
 begin
   foreach table_name in array array[
+    'claim_report_snapshots',
+    'claim_email_action_tokens',
+    'employee_ledger_entries',
+    'employee_advances',
+    'claim_sap_export_items',
+    'claim_sap_export_batches',
+    'claim_payments',
+    'claim_payment_voucher_attachments',
+    'claim_payment_voucher_items',
+    'claim_payment_vouchers',
+    'claim_payment_batches',
+    'claim_accounts_verifications',
+    'sap_gl_mappings',
+    'sap_cost_center_mappings',
+    'sap_export_settings',
+    'user_signatures',
     'notification_deliveries',
     'notifications',
     'audit_logs',

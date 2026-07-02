@@ -16,7 +16,9 @@ where bucket_id in (
   'fuel-receipts',
   'vendor-contracts',
   'payment-proofs',
-  'sap-exports'
+  'sap-exports',
+  'claim-vouchers',
+  'user-signatures'
 );
 
 commit;

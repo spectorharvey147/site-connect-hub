@@ -9,6 +9,7 @@ import type {
   UserManagementSummary,
   UserUpdateInput,
 } from "@/types/users";
+import { normalizeEmail, normalizeEmployeeCode, optionalUuid, uniqueUuids } from "@/utils/supabaseInput";
 
 function assertCanManage(actor: AppUser) {
   if (!["admin_hr", "super_admin"].includes(actor.role)) {
@@ -44,15 +45,6 @@ function splitName(input: UserInviteInput) {
   };
 }
 
-function nullableUuid(value: string | null | undefined) {
-  const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
-}
-
-function cleanUuidList(values: string[] | undefined) {
-  return (values ?? []).map((value) => value.trim()).filter(Boolean);
-}
-
 export const usersService = {
   async listUsers(actor: AppUser) {
     assertCanManage(actor);
@@ -78,24 +70,24 @@ export const usersService = {
       throw new Error("Enter user email.");
     }
     const { firstName, lastName } = splitName(input);
-    const projectIds = cleanUuidList(input.projectIds);
+    const projectIds = uniqueUuids(input.projectIds);
     const user = await userHierarchyService.createUserWithHierarchy(
       {
         organizationId: input.organizationId || actor.organizationId || "",
-        employeeCode: input.employeeCode,
+        employeeCode: normalizeEmployeeCode(input.employeeCode),
         firstName,
         lastName,
-        email: input.email,
+        email: normalizeEmail(input.email),
         phone: input.phone,
         role: input.role,
-        departmentId: nullableUuid(input.departmentId) ?? "",
-        designationId: nullableUuid(input.designationId) ?? undefined,
+        departmentId: optionalUuid(input.departmentId) ?? "",
+        designationId: optionalUuid(input.designationId) ?? undefined,
         reportingManagerId:
-          nullableUuid(input.reportingManagerId) ??
-          nullableUuid(input.managerId) ??
+          optionalUuid(input.reportingManagerId) ??
+          optionalUuid(input.managerId) ??
           undefined,
-        hodUserId: nullableUuid(input.hodUserId) ?? undefined,
-        primaryProjectId: nullableUuid(input.primaryProjectId) ?? projectIds[0],
+        hodUserId: optionalUuid(input.hodUserId) ?? undefined,
+        primaryProjectId: optionalUuid(input.primaryProjectId) ?? projectIds[0],
         projectIds,
         employmentType: input.employmentType,
         joiningDate: input.joiningDate,
@@ -119,15 +111,15 @@ export const usersService = {
 
     const normalized = {
       ...input,
-      departmentId: nullableUuid(input.departmentId) ?? undefined,
-      designationId: nullableUuid(input.designationId) ?? undefined,
+      departmentId: optionalUuid(input.departmentId) ?? undefined,
+      designationId: optionalUuid(input.designationId) ?? undefined,
       reportingManagerId:
-        nullableUuid(input.reportingManagerId) ??
-        nullableUuid(input.managerId) ??
+        optionalUuid(input.reportingManagerId) ??
+        optionalUuid(input.managerId) ??
         undefined,
-      hodUserId: nullableUuid(input.hodUserId) ?? undefined,
-      primaryProjectId: nullableUuid(input.primaryProjectId) ?? undefined,
-      projectIds: cleanUuidList(input.projectIds),
+      hodUserId: optionalUuid(input.hodUserId) ?? undefined,
+      primaryProjectId: optionalUuid(input.primaryProjectId) ?? undefined,
+      projectIds: uniqueUuids(input.projectIds ?? []),
     };
 
     if (input.reportingManagerId !== undefined || input.managerId !== undefined) {
@@ -215,6 +207,19 @@ export const usersService = {
       newValues: input as Record<string, unknown>,
     });
     return updated;
+  },
+
+  async resendInvite(userId: string, actor: AppUser) {
+    assertCanManage(actor);
+    if (!isSupabaseConfigured || !supabase) {
+      return { message: "Invitation resent." };
+    }
+    const { data, error } = await supabase.functions.invoke("provision-user", {
+      body: { action: "resend_invite", userId },
+    });
+    if (error) throw new Error(error.message);
+    if (data?.error) throw new Error(String(data.error));
+    return { message: String(data?.message ?? "Invitation resent.") };
   },
 
   resetDemoData() {

@@ -23,6 +23,9 @@ function mapProject(row: Row): ProjectMaster {
     latitude: row.latitude == null ? undefined : Number(row.latitude),
     longitude: row.longitude == null ? undefined : Number(row.longitude),
     projectBudget: Number(row.project_budget ?? 0),
+    workManagerMappings: Array.isArray(row.work_manager_mappings)
+      ? row.work_manager_mappings as ProjectMaster["workManagerMappings"]
+      : [],
     status: row.status === "inactive" ? "inactive" : "active",
     assignedUserCount: 0,
     assignedDepartmentCount: 0,
@@ -52,6 +55,7 @@ export const projectAccessService = {
         location: project.location,
         geofenceRadius: 250,
         projectBudget: 0,
+        workManagerMappings: [],
         status: "active",
         assignedUserCount: 0,
         assignedDepartmentCount: 0,

@@ -2,6 +2,11 @@ import type { MasterStatus } from "@/types/organization";
 
 export type ProjectAssignmentType = "primary" | "secondary" | "temporary";
 export type DepartmentProjectAssignmentType = "primary" | "support";
+export interface ProjectWorkManagerMapping {
+  workType: string;
+  managerId: string;
+  managerName?: string;
+}
 export type ProjectExpenseType =
   | "Labour"
   | "Machinery"
@@ -52,6 +57,7 @@ export interface ProjectMaster {
   projectBudget: number;
   projectManagerId?: string;
   projectManagerName?: string;
+  workManagerMappings: ProjectWorkManagerMapping[];
   primaryDepartmentId?: string;
   primaryDepartmentName?: string;
   isCommonProject?: boolean;
@@ -82,6 +88,7 @@ export interface ProjectInput {
   endDate?: string;
   projectBudget: number;
   projectManagerId?: string;
+  workManagerMappings: ProjectWorkManagerMapping[];
   primaryDepartmentId?: string;
   isCommonProject?: boolean;
   description?: string;
