@@ -8,14 +8,26 @@ export type ClaimStatus =
   | "admin_verified"
   | "manager_approval_pending"
   | "manager_approved"
+  | "hod_approval_pending"
+  | "hod_approved"
   | "final_approval_pending"
+  | "final_approved"
+  | "accounts_verification_pending"
+  | "accounts_verified"
+  | "accounts_returned"
+  | "voucher_pending"
   | "approved_for_payment"
   | "voucher_generated"
+  | "sap_export_pending"
+  | "sap_exported"
+  | "payment_pending"
+  | "partially_paid"
   | "partial_paid"
   | "pending_payment"
   | "paid"
   | "rejected"
   | "changes_requested"
+  | "cancelled"
   | "withdrawn";
 
 export type ExpenseBillType = "with_bill" | "without_bill";
@@ -24,7 +36,9 @@ export type ClaimApprovalStage =
   | "submission"
   | "admin_verification"
   | "manager_approval"
+  | "hod_approval"
   | "final_approval"
+  | "accounts_verification"
   | "accounts_payment";
 
 export type ClaimDecision =
@@ -66,6 +80,7 @@ export interface ClaimItem {
   categoryName: string;
   projectId: string;
   projectName: string;
+  workType?: string;
   costCodeId: string;
   costCode: string;
   description: string;
@@ -119,6 +134,89 @@ export interface PaymentVoucher {
   createdAt: string;
   paidAt?: string;
   paymentReference?: string;
+  voucherType?: "single_claim" | "combined_claim";
+  claimIds?: string[];
+  employeeId?: string;
+  grossClaimedAmount?: number;
+  grossVerifiedAmount?: number;
+  voucherPdfPath?: string;
+  voucherWithAttachmentsPdfPath?: string;
+}
+
+export interface ClaimVoucherItem {
+  id: string;
+  voucherId: string;
+  claimId: string;
+  claimItemId?: string;
+  claimNumber: string;
+  expenseDate: string;
+  category: string;
+  projectName: string;
+  customerName?: string;
+  costCode: string;
+  description: string;
+  billReference?: string;
+  withBillAmount: number;
+  withoutBillAmount: number;
+  claimedAmount: number;
+  verifiedAmount: number;
+  managerApprovedAmount: number;
+  finalApprovedAmount: number;
+  approvedAmount: number;
+  deductionAmount: number;
+  remarks?: string;
+}
+
+export interface DetailedClaimVoucher extends PaymentVoucher {
+  voucherType: "single_claim" | "combined_claim";
+  claimIds: string[];
+  employeeId: string;
+  employeeCode?: string;
+  departmentName?: string;
+  designationName?: string;
+  projectName?: string;
+  customerName?: string;
+  managerName?: string;
+  hodName?: string;
+  finalApproverName?: string;
+  accountsVerifierName?: string;
+  paidByName?: string;
+  previousAdvanceBalance?: number;
+  balanceAfterPayment?: number;
+  grossClaimedAmount: number;
+  grossVerifiedAmount: number;
+  items: ClaimVoucherItem[];
+  attachments: ClaimAttachment[];
+  signatures?: Record<string, string>;
+}
+
+export type AccountsVerificationStatus = "pending" | "verified" | "returned" | "rejected";
+export type PaymentPriority = "normal" | "urgent" | "hold";
+
+export interface ClaimAccountsVerification {
+  id: string;
+  organizationId: string;
+  claimId: string;
+  verifiedBy?: string;
+  verificationStatus: AccountsVerificationStatus;
+  verificationDate?: string;
+  accountsRemarks?: string;
+  payableAmount: number;
+  deductionAmount: number;
+  paymentPriority: PaymentPriority;
+  requiresSapExport: boolean;
+  sapExportStatus: "not_required" | "pending" | "exported";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccountsVerificationInput {
+  claimId: string;
+  payableAmount: number;
+  paymentPriority: PaymentPriority;
+  requiresSapExport: boolean;
+  accountsRemarks: string;
+  confirmed: boolean;
 }
 
 export interface EmployeeLedgerEntry {
@@ -207,6 +305,7 @@ export interface Claim {
   userName: string;
   userEmail: string;
   projectId: string;
+  workType?: string;
   projectName: string;
   customerId?: string;
   customerName?: string;
@@ -230,6 +329,7 @@ export interface Claim {
 export interface ClaimInput {
   title: string;
   projectId: string;
+  workType?: string;
   customerId?: string;
   customerName?: string;
   periodFrom: string;
@@ -281,6 +381,7 @@ export type ClaimAction =
   | "admin_review"
   | "manager_review"
   | "final_review"
+  | "accounts_verify"
   | "generate_voucher"
   | "mark_paid"
   | "withdraw";

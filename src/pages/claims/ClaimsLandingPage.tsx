@@ -41,10 +41,10 @@ export function ClaimsLandingPage() {
 
     async function loadClaims() {
       setLoading(true);
-      const [nextClaims, nextSummary, nextBalances] = await Promise.all([
-        claimsService.listClaims(currentUser),
-        claimsService.getReportSummary(currentUser),
-        claimsService.listUserBalances(currentUser),
+      const nextClaims = await claimsService.listClaims(currentUser);
+      const [nextSummary, nextBalances] = await Promise.all([
+        claimsService.getReportSummary(currentUser, nextClaims),
+        claimsService.listUserBalances(currentUser, nextClaims),
       ]);
       setClaims(nextClaims);
       setSummary(nextSummary);
@@ -147,6 +147,7 @@ export function ClaimsLandingPage() {
               description="Audit register for claims, vouchers and payments."
               to="/claims/transactions"
             />
+            <QuickLink icon={<ListChecks className="h-5 w-5"/>} title="Claim Reports" description="Ageing, approval delay, deductions and project cost." to="/claims/reports"/>
             {queueLink ? (
               <QuickLink
                 icon={<ReceiptText className="h-5 w-5" />}

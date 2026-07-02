@@ -1,4 +1,4 @@
-import { Save } from "lucide-react";
+import { Plus, Save, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -13,9 +13,11 @@ import { useAuth } from "@/hooks/useAuth";
 import { departmentService } from "@/services/departmentService";
 import { projectService } from "@/services/projectService";
 import { userHierarchyService } from "@/services/userHierarchyService";
+import { workTypeService } from "@/services/workTypeService";
 import type { AppUser } from "@/types/auth";
 import type { Department } from "@/types/organization";
 import type { Customer, ProjectInput } from "@/types/projects";
+import type { WorkType } from "@/types/workTypes";
 
 const selectClass =
   "h-11 w-full rounded-md border border-[#D0D0D0] bg-white px-3 text-sm text-text-primary shadow-sm outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/15";
@@ -27,6 +29,7 @@ function emptyProject(organizationId: string): ProjectInput {
     name: "",
     geofenceRadius: 250,
     projectBudget: 0,
+    workManagerMappings: [],
     status: "active",
   };
 }
@@ -39,16 +42,18 @@ export function ProjectFormPage() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [managers, setManagers] = useState<AppUser[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [workTypes, setWorkTypes] = useState<WorkType[]>([]);
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
     if (!user?.organizationId) {
       return;
     }
-    const [departmentRows, userRows, customerRows, project] = await Promise.all([
+    const [departmentRows, userRows, customerRows, workTypeRows, project] = await Promise.all([
       departmentService.getDepartments(user.organizationId),
       userHierarchyService.listUsers(user.organizationId),
       projectService.getCustomers(user.organizationId),
+      workTypeService.list(user.organizationId),
       projectId ? projectService.getProjectById(projectId) : Promise.resolve(null),
     ]);
     setDepartments(departmentRows);
@@ -60,6 +65,7 @@ export function ProjectFormPage() {
       ),
     );
     setCustomers(customerRows);
+    setWorkTypes(workTypeRows.filter((item) => item.status === "active"));
     setForm(
       project
         ? {
@@ -80,6 +86,7 @@ export function ProjectFormPage() {
             endDate: project.endDate,
             projectBudget: project.projectBudget,
             projectManagerId: project.projectManagerId,
+            workManagerMappings: project.workManagerMappings,
             primaryDepartmentId: project.primaryDepartmentId,
             description: project.description,
             status: project.status,
@@ -185,6 +192,28 @@ export function ProjectFormPage() {
           </FormField>
           <div className="md:col-span-2">
             <Textarea label="Description" value={form.description ?? ""} onChange={(event) => update("description", event.target.value)} />
+          </div>
+          <div className="space-y-3 rounded-lg border border-surface-border p-4 md:col-span-2">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="font-bold text-text-primary">Work Manager Mapping</p>
+                <p className="text-sm text-text-secondary">Route claims by the type of work performed in this project.</p>
+              </div>
+              <Button type="button" variant="outline" leftIcon={<Plus className="h-4 w-4" />} onClick={() => update("workManagerMappings", [...form.workManagerMappings, { workType: "", managerId: "" }])}>Add Work</Button>
+            </div>
+            {form.workManagerMappings.map((mapping, index) => (
+              <div key={index} className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+                <FormField label="Work Type"><select className={selectClass} value={mapping.workType} onChange={(event) => update("workManagerMappings", form.workManagerMappings.map((item, itemIndex) => itemIndex === index ? { ...item, workType: event.target.value } : item))}><option value="">Select work type</option>{workTypes.map((workType) => <option key={workType.id} value={workType.name}>{workType.name}</option>)}</select></FormField>
+                <FormField label="Manager">
+                  <select className={selectClass} value={mapping.managerId} onChange={(event) => { const manager = managers.find((item) => item.id === event.target.value); update("workManagerMappings", form.workManagerMappings.map((item, itemIndex) => itemIndex === index ? { ...item, managerId: event.target.value, managerName: manager?.fullName } : item)); }}>
+                    <option value="">Select manager</option>
+                    {managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.fullName}</option>)}
+                  </select>
+                </FormField>
+                <Button type="button" variant="ghost" size="icon" title="Remove mapping" className="self-end" onClick={() => update("workManagerMappings", form.workManagerMappings.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-4 w-4" /></Button>
+              </div>
+            ))}
+            {form.workManagerMappings.length === 0 ? <p className="text-sm text-text-secondary">No special work routing. The default project manager will be used.</p> : null}
           </div>
           <div className="md:col-span-2">
             <Button leftIcon={<Save className="h-4 w-4" />} isLoading={saving} onClick={() => void save()}>

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import { ApprovalTimeline } from "@/components/claims/ApprovalTimeline";
+import { ClaimAuditTimeline } from "@/components/claims/ClaimAuditTimeline";
 import { ClaimAttachmentsList } from "@/components/claims/ClaimAttachmentsList";
 import { ClaimItemsTable } from "@/components/claims/ClaimItemsTable";
 import { ClaimStatusBadge } from "@/components/claims/ClaimStatusBadge";
@@ -18,6 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { canPerformClaimAction, claimsService } from "@/services/claimsService";
+import { listClaimAuditLogs,type ClaimAuditEvent } from "@/services/auditService";
 import { useAuth } from "@/hooks/useAuth";
 import type { AppUser } from "@/types/auth";
 import type { Claim } from "@/types/claims";
@@ -28,6 +30,7 @@ export function ClaimDetailPage() {
   const { user } = useAuth();
   const [claim, setClaim] = useState<Claim | null>(null);
   const [loading, setLoading] = useState(true);
+  const [auditEvents,setAuditEvents]=useState<ClaimAuditEvent[]>([]);
 
   useEffect(() => {
     if (!user || !claimId) {
@@ -39,6 +42,7 @@ export function ClaimDetailPage() {
       setClaim(nextClaim);
       setLoading(false);
     });
+    void listClaimAuditLogs(claimId).then(setAuditEvents).catch(()=>setAuditEvents([]));
   }, [claimId, user]);
 
   if (!user) {
@@ -149,6 +153,7 @@ export function ClaimDetailPage() {
                 approvals={claim.approvals}
                 approvalPath={claim.approvalPath}
               />
+              <div className="mt-6 border-t border-surface-border pt-5"><h3 className="mb-3 font-bold">System Audit Events</h3><ClaimAuditTimeline events={auditEvents}/></div>
             </CardContent>
           </Card>
         </div>

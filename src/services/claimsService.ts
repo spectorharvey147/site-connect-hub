@@ -7,6 +7,8 @@ import {
 } from "@/constants/claims";
 import { recordAuditLog } from "@/services/auditService";
 import { approvalMatrixService } from "@/services/approvalMatrixService";
+import { claimStageNotification } from "@/services/claimNotificationWorkflow";
+import { claimEmailActionService } from "@/services/claimEmailActionService";
 import { notificationService } from "@/services/notificationService";
 import { storageService } from "@/services/storageService";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
@@ -33,6 +35,49 @@ import type {
   TransactionFilters,
   UserClaimBalance,
 } from "@/types/claims";
+
+async function notifyPendingClaimStage(claim: Claim) {
+  if (!supabase) return;
+  const client = supabase;
+  const stage = claimStageNotification(claim.status);
+  if (!stage || stage.audience === "employee") return;
+
+  let recipientIds: string[] = [];
+  if (stage.audience === "manager") {
+    recipientIds = [claim.reportingManagerId].filter((id): id is string => Boolean(id));
+  } else if (stage.audience === "final" && claim.hodUserId) {
+    recipientIds = [claim.hodUserId];
+  } else {
+    const roles = stage.audience === "admin"
+      ? ["admin_hr", "super_admin"]
+      : stage.audience === "accounts"
+        ? ["accounts_officer", "super_admin"]
+        : ["hod", "super_admin"];
+    let query = client.from("user_profiles").select("id").in("role_id", roles).eq("status", "active");
+    if (claim.organizationId) query = query.eq("organization_id", claim.organizationId);
+    const { data } = await query;
+    recipientIds = (data ?? []).map((row) => String(row.id));
+  }
+
+  const scopes = { admin: "admin_verify", manager: "manager_approve", final: "hod_approve", accounts: "accounts_verify" } as const;
+  const actionStage = ["admin_verification_pending", "manager_approval_pending", "final_approval_pending", "accounts_verification_pending"].includes(claim.status);
+  await Promise.all(recipientIds.map(async (userId) => {
+    const fallback = () => notificationService.send({
+      userId, type: stage.event, title: `Claim ${claim.claimNumber} ${stage.label}`,
+      message: `${claim.userName} · ${claim.projectName} · ${claim.totalApproved || claim.totalVerified || claim.totalClaimed}`,
+      relatedId: claim.id, relatedType: "claim",
+    }).catch(() => undefined);
+    const scope = scopes[stage.audience as keyof typeof scopes];
+    if (!scope || !actionStage) return fallback();
+    const { data: profile } = await client.from("user_profiles").select("role_id").eq("id", userId).maybeSingle();
+    return claimEmailActionService.createAndSend({
+      claimId: claim.id, claimNumber: claim.claimNumber, employee: claim.userName,
+      project: claim.projectName, amount: claim.totalApproved || claim.totalVerified || claim.totalClaimed,
+      approverId: userId, role: String(profile?.role_id ?? stage.audience), scope,
+      event: stage.event, label: stage.label,
+    }).catch(fallback);
+  }));
+}
 
 const CLAIMS_STORAGE_KEY = "site-connect:claims";
 const VOUCHERS_STORAGE_KEY = "site-connect:payment-vouchers";
@@ -611,8 +656,16 @@ function canViewClaim(user: AppUser, claim: Claim) {
 
   if (user.role === "accounts_officer") {
     return [
+      "accounts_verification_pending",
+      "accounts_returned",
+      "accounts_verified",
+      "voucher_pending",
       "approved_for_payment",
       "voucher_generated",
+      "sap_export_pending",
+      "sap_exported",
+      "payment_pending",
+      "partially_paid",
       "partial_paid",
       "pending_payment",
       "paid",
@@ -717,12 +770,21 @@ export function canPerformClaimAction({
     };
   }
 
+  if (action === "accounts_verify") {
+    return {
+      allowed:
+        ["accounts_officer", "admin_hr", "super_admin"].includes(user.role) &&
+        ["accounts_verification_pending", "accounts_returned"].includes(claim.status),
+      reason: "Accounts verification requires an authorized Accounts, Admin, or Super Admin user.",
+    };
+  }
+
   if (action === "generate_voucher") {
     return {
       allowed:
         ["accounts_officer", "super_admin"].includes(user.role) &&
-        claim.status === "approved_for_payment",
-      reason: "Voucher generation requires Accounts or Super Admin.",
+        ["accounts_verified", "voucher_pending"].includes(claim.status),
+      reason: "The claim must pass Accounts verification before voucher generation.",
     };
   }
 
@@ -730,7 +792,7 @@ export function canPerformClaimAction({
     return {
       allowed:
         ["accounts_officer", "super_admin"].includes(user.role) &&
-        ["voucher_generated", "partial_paid", "pending_payment"].includes(
+        ["voucher_generated", "sap_exported", "payment_pending", "partially_paid", "partial_paid", "pending_payment"].includes(
           claim.status,
         ),
       reason: "Only Accounts or Super Admin can mark payment complete.",
@@ -831,7 +893,7 @@ function getNextStatus(
   const roles = finalApprovalRoles(claim);
   const currentIndex = roles.indexOf(actor.role as "hod" | "super_admin");
   const hasNext = currentIndex >= 0 && currentIndex < roles.length - 1;
-  return hasNext ? "final_approval_pending" : "approved_for_payment";
+  return hasNext ? "final_approval_pending" : "accounts_verification_pending";
 }
 
 function getApprovedAmount(
@@ -996,6 +1058,7 @@ interface SupabaseClaimRow {
   title: string;
   user_id: string;
   project_id: string | null;
+  work_type?: string | null;
   customer_id?: string | null;
   customer_name?: string | null;
   period_from: string;
@@ -1063,6 +1126,7 @@ interface SupabaseClaimApprovalRow {
   decision: ClaimDecision;
   actor_id: string;
   actor_role: Role;
+  actor_name?: string | null;
   remarks: string | null;
   amount_before: number | string | null;
   amount_after: number | string | null;
@@ -1418,6 +1482,7 @@ async function mapSupabaseClaims(rows: SupabaseClaimRow[]): Promise<Claim[]> {
       userEmail: profile?.email ?? "",
       projectId: mappedProjectId,
       projectName: project?.name ?? "Project",
+      workType: typeof row.work_type === "string" ? row.work_type : undefined,
       customerId: row.customer_id ?? project?.customer_id ?? undefined,
       customerName: row.customer_name ?? project?.customer_name ?? undefined,
       periodFrom: row.period_from,
@@ -1446,7 +1511,7 @@ async function mapSupabaseClaims(rows: SupabaseClaimRow[]): Promise<Claim[]> {
             stage: approval.stage,
             decision: approval.decision,
             actorId: approval.actor_id,
-            actorName: actor?.full_name ?? "Approver",
+            actorName: approval.actor_name ?? actor?.full_name ?? "Approver",
             actorRole: approval.actor_role,
             remarks: approval.remarks ?? undefined,
             amountBefore:
@@ -1535,7 +1600,7 @@ async function insertSupabaseClaim(
   if (status !== "draft") {
     await assertNoProcessedBillDuplicates(input, organizationId);
   }
-  const approvalPath =
+  let approvalPath =
     status === "draft"
       ? []
       : await approvalMatrixService
@@ -1550,6 +1615,31 @@ async function insertSupabaseClaim(
           })
           .then((result) => result.steps)
           .catch(() => []);
+  if (status !== "draft" && input.workType) {
+    const { data: routingProject } = await claimsClient()
+      .from("projects")
+      .select("project_manager_id, work_manager_mappings")
+      .eq("id", projectId)
+      .maybeSingle();
+    const mappings = Array.isArray(routingProject?.work_manager_mappings)
+      ? routingProject.work_manager_mappings as Array<{ workType?: string; managerId?: string; managerName?: string }>
+      : [];
+    const mappedManager = mappings.find(
+      (mapping) => mapping.workType?.trim().toLowerCase() === input.workType?.trim().toLowerCase(),
+    );
+    const managerId = mappedManager?.managerId ?? routingProject?.project_manager_id;
+    if (managerId) {
+      let managerName = mappedManager?.managerName;
+      if (!managerName) {
+        const { data: manager } = await claimsClient().from("user_profiles").select("full_name").eq("id", managerId).maybeSingle();
+        managerName = manager?.full_name;
+      }
+      approvalPath = approvalPath.map((step) =>
+        step.role === "manager" ? { ...step, userId: managerId, userName: managerName } : step,
+      );
+    }
+  }
+
   const claimNumber = await nextSupabaseNumber(
     "claims",
     "claim_number",
@@ -1568,6 +1658,7 @@ async function insertSupabaseClaim(
       reporting_manager_id: user.reportingManagerId ?? user.managerId ?? null,
       hod_user_id: user.hodUserId ?? null,
       project_id: projectId,
+      work_type: input.workType?.trim() || null,
       customer_id: input.customerId ?? null,
       customer_name: input.customerName?.trim() || null,
       period_from: input.periodFrom,
@@ -1644,6 +1735,7 @@ async function insertSupabaseClaim(
         decision: "submitted",
         actor_id: user.id,
         actor_role: user.role,
+        actor_name: user.fullName,
         remarks: input.remarks ?? null,
       });
     if (approvalError) {
@@ -1910,8 +2002,12 @@ export const claimsService = {
       manager: ["manager_approval_pending"],
       final: ["final_approval_pending"],
       payment: [
-        "approved_for_payment",
+        "accounts_verified",
+        "voucher_pending",
         "voucher_generated",
+        "sap_exported",
+        "payment_pending",
+        "partially_paid",
         "partial_paid",
         "pending_payment",
       ],
@@ -1975,17 +2071,6 @@ export const claimsService = {
           totalClaimed: claim.totalClaimed,
         },
       });
-      const recipientId = user.reportingManagerId ?? user.managerId;
-      if (recipientId) {
-        await notificationService.send({
-          userId: recipientId,
-          type: "claim_submitted",
-          title: `Claim ${claim.claimNumber} submitted`,
-          message: `${user.fullName} submitted a claim for review.`,
-          relatedId: claim.id,
-          relatedType: "claim",
-        }).catch(() => undefined);
-      }
       return claim;
     }
 
@@ -2051,6 +2136,7 @@ export const claimsService = {
           totalClaimed: claim.totalClaimed,
         },
       });
+      await notifyPendingClaimStage(claim);
       return claim;
     }
 
@@ -2196,6 +2282,7 @@ export const claimsService = {
           decision,
           actor_id: user.id,
           actor_role: user.role,
+          actor_name: user.fullName,
           remarks: input.remarks,
           amount_before: amountBefore,
           amount_after: amountAfter,
@@ -2277,7 +2364,7 @@ export const claimsService = {
       });
       if (
         input.stage === "final_approval" &&
-        nextStatus === "approved_for_payment"
+        nextStatus === "accounts_verification_pending"
       ) {
         await recordAuditLog({
           userId: user.id,
@@ -2299,6 +2386,7 @@ export const claimsService = {
         relatedId: claim.id,
         relatedType: "claim",
       }).catch(() => undefined);
+      await notifyPendingClaimStage(updated);
       return updated;
     }
 
@@ -2431,7 +2519,7 @@ export const claimsService = {
     });
     if (
       input.stage === "final_approval" &&
-      nextStatus === "approved_for_payment"
+      nextStatus === "accounts_verification_pending"
     ) {
       await recordAuditLog({
         userId: user.id,
@@ -2442,6 +2530,51 @@ export const claimsService = {
       });
     }
     return updatedClaim;
+  },
+
+  async applyAccountsVerification(
+    claimId: string,
+    user: AppUser,
+    input: { action: "verify" | "return"; payableAmount: number; paymentPriority: "normal" | "urgent" | "hold"; requiresSapExport: boolean; remarks: string },
+  ) {
+    const claim = await this.getClaim(claimId, user);
+    if (!claim) throw new Error("Claim not found.");
+    const permission = canPerformClaimAction({ user, claim, action: "accounts_verify" });
+    if (!permission.allowed) throw new Error(permission.reason ?? "Action not allowed.");
+    if (input.action === "verify" && input.payableAmount > claim.totalApproved) {
+      throw new Error("Payable amount cannot exceed the final approved amount.");
+    }
+    if (input.action === "verify" && input.payableAmount < claim.totalApproved && !input.remarks.trim()) {
+      throw new Error("Accounts remarks are required when reducing the payable amount.");
+    }
+    if (input.action === "return" && !input.remarks.trim()) {
+      throw new Error("Accounts remarks are required when returning a claim.");
+    }
+
+    const nextStatus: ClaimStatus = input.action === "verify" ? "voucher_pending" : "accounts_returned";
+    if (shouldUseSupabaseClaims()) {
+      const { error } = await claimsClient().rpc("process_claim_accounts_verification", {
+        p_claim_id: claimId,
+        p_action: input.action,
+        p_payable_amount: input.payableAmount,
+        p_payment_priority: input.paymentPriority,
+        p_requires_sap_export: input.requiresSapExport,
+        p_remarks: input.remarks.trim() || null,
+      });
+      if (error) throw new Error(error.message);
+    } else {
+      const claims = readClaims();
+      writeClaims(claims.map((row) => row.id === claimId ? { ...row, status: nextStatus, updatedAt: now() } : row));
+    }
+    await recordAuditLog({
+      userId: user.id,
+      action: input.action === "verify" ? "claims.accounts.verified" : "claims.accounts.returned",
+      entityType: "claim",
+      entityId: claimId,
+      oldValues: { status: claim.status, amount: claim.totalApproved },
+      newValues: { status: nextStatus, payableAmount: input.payableAmount, deductionAmount: Math.max(claim.totalApproved - input.payableAmount, 0), remarks: input.remarks },
+    });
+    return this.getClaim(claimId, user);
   },
 
   async generateVoucher(claimId: string, user: AppUser, accountsNote?: string) {
@@ -2507,6 +2640,7 @@ export const claimsService = {
           decision: "voucher_generated",
           actor_id: user.id,
           actor_role: user.role,
+          actor_name: user.fullName,
           remarks: accountsNote ?? null,
           amount_before: approvedAmount,
           amount_after: approvedAmount,
@@ -2753,6 +2887,7 @@ export const claimsService = {
           decision: "paid",
           actor_id: user.id,
           actor_role: user.role,
+          actor_name: user.fullName,
           remarks: paymentReference,
         });
       if (approvalError) {
@@ -3146,8 +3281,8 @@ export const claimsService = {
     );
   },
 
-  async listUserBalances(user: AppUser): Promise<UserClaimBalance[]> {
-    const claims = await this.listClaims(user);
+  async listUserBalances(user: AppUser, loadedClaims?: Claim[]): Promise<UserClaimBalance[]> {
+    const claims = loadedClaims ?? await this.listClaims(user);
     const ledger = await this.listLedger(user);
     const visibleUsers = shouldUseSupabaseClaims()
       ? canSeeFinancialData(user.role)
@@ -3211,8 +3346,8 @@ export const claimsService = {
       );
   },
 
-  async getReportSummary(user: AppUser): Promise<ClaimReportSummary> {
-    const claims = await this.listClaims(user);
+  async getReportSummary(user: AppUser, loadedClaims?: Claim[]): Promise<ClaimReportSummary> {
+    const claims = loadedClaims ?? await this.listClaims(user);
     return {
       totalClaims: claims.length,
       totalClaimed: claims.reduce((sum, claim) => sum + claim.totalClaimed, 0),

@@ -36,7 +36,7 @@ describe("Gmail SMTP settings", () => {
   });
 
   it("covers every required notification event", () => {
-    expect(EMAIL_NOTIFICATION_EVENTS).toHaveLength(15);
+    expect(EMAIL_NOTIFICATION_EVENTS).toHaveLength(25);
     expect(EMAIL_NOTIFICATION_EVENTS.map(([event]) => event)).toContain(
       "message_mention",
     );

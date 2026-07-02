@@ -10,6 +10,8 @@ interface OrganizationRow {
   organization_name: string;
   legal_name: string | null;
   logo_url: string | null;
+  voucher_logo_position: "left" | "right" | "hidden" | null;
+  voucher_logo_size: number | null;
   gst_number: string | null;
   pan_number: string | null;
   address: string | null;
@@ -54,6 +56,8 @@ function mapOrganization(row: OrganizationRow): Organization {
     organizationName: row.organization_name,
     legalName: row.legal_name ?? undefined,
     logoUrl: row.logo_url ?? undefined,
+    voucherLogoPosition: row.voucher_logo_position ?? "left",
+    voucherLogoSize: row.voucher_logo_size ?? 18,
     gstNumber: row.gst_number ?? undefined,
     panNumber: row.pan_number ?? undefined,
     address: row.address ?? undefined,
@@ -82,6 +86,8 @@ function toOrganizationRow(
     organization_name: input.organizationName.trim(),
     legal_name: input.legalName?.trim() || null,
     logo_url: input.logoUrl || null,
+    voucher_logo_position: input.voucherLogoPosition ?? "left",
+    voucher_logo_size: Math.min(28, Math.max(12, Number(input.voucherLogoSize ?? 18))),
     gst_number: input.gstNumber?.trim() || null,
     pan_number: input.panNumber?.trim() || null,
     address: input.address?.trim() || null,
@@ -110,6 +116,8 @@ function mergeOrganization(
     organizationName: input.organizationName.trim(),
     legalName: input.legalName?.trim() || undefined,
     logoUrl: input.logoUrl || current.logoUrl,
+    voucherLogoPosition: input.voucherLogoPosition ?? current.voucherLogoPosition ?? "left",
+    voucherLogoSize: Math.min(28, Math.max(12, Number(input.voucherLogoSize ?? current.voucherLogoSize ?? 18))),
     gstNumber: input.gstNumber?.trim() || undefined,
     panNumber: input.panNumber?.trim() || undefined,
     address: input.address?.trim() || undefined,

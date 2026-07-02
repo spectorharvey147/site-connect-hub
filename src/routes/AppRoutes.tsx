@@ -220,6 +220,27 @@ const DesignationsPage = lazy(() =>
     default: module.DesignationsPage,
   })),
 );
+const AccountsVouchersPage = lazy(() =>
+  import("@/pages/accounts/AccountsVouchersPage").then((module) => ({ default: module.AccountsVouchersPage })),
+);
+const ClaimAccountsVerificationPage = lazy(() =>
+  import("@/pages/accounts/ClaimAccountsVerificationPage").then((module) => ({
+    default: module.ClaimAccountsVerificationPage,
+  })),
+);
+const SapEntryPage=lazy(()=>import("@/pages/accounts/SapEntryPage").then(m=>({default:m.SapEntryPage})));
+const SapPendingPage=lazy(()=>import("@/pages/accounts/SapPendingPage").then(m=>({default:m.SapPendingPage})));
+const SapPreviewPage=lazy(()=>import("@/pages/accounts/SapPreviewPage").then(m=>({default:m.SapPreviewPage})));
+const SapBatchesPage=lazy(()=>import("@/pages/accounts/SapBatchesPage").then(m=>({default:m.SapBatchesPage})));
+const SapBatchDetailPage=lazy(()=>import("@/pages/accounts/SapBatchDetailPage").then(m=>({default:m.SapBatchDetailPage})));
+const SapMappingPage=lazy(()=>import("@/pages/settings/SapMappingPage").then(m=>({default:m.SapMappingPage})));
+const EmployeeLedgerPage=lazy(()=>import("@/pages/accounts/EmployeeLedgerPage").then(m=>({default:m.EmployeeLedgerPage})));
+const EmployeeLedgerDetailPage=lazy(()=>import("@/pages/accounts/EmployeeLedgerDetailPage").then(m=>({default:m.EmployeeLedgerDetailPage})));
+const UserAdvancePage=lazy(()=>import("@/pages/users/UserAdvancePage").then(m=>({default:m.UserAdvancePage})));
+const UserSignaturePage=lazy(()=>import("@/pages/users/UserSignaturePage").then(m=>({default:m.UserSignaturePage})));
+const SignaturesPage=lazy(()=>import("@/pages/settings/SignaturesPage").then(m=>({default:m.SignaturesPage})));
+const ClaimEmailActionPage=lazy(()=>import("@/pages/claims/ClaimEmailActionPage").then(m=>({default:m.ClaimEmailActionPage})));
+const WorkTypesPage = lazy(() => import("@/pages/settings/WorkTypesPage").then((module) => ({ default: module.WorkTypesPage })));
 const OrganizationSettingsPage = lazy(() =>
   import("@/pages/settings/OrganizationSettingsPage").then((module) => ({
     default: module.OrganizationSettingsPage,
@@ -293,6 +314,7 @@ export function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/setup-admin" element={<SetupAdminPage />} />
+      <Route path="/claim-action" element={<ClaimEmailActionPage />} />
 
       <Route
         element={
@@ -753,6 +775,14 @@ export function AppRoutes() {
           }
         />
         <Route
+          path="accounts/claim-verification"
+          element={
+            <ProtectedRoute allowedRoles={["accounts_officer", "admin_hr", "super_admin"]}>
+              <ClaimAccountsVerificationPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="accounts/payment-queue"
           element={
             <ProtectedRoute allowedRoles={["accounts_officer", "super_admin"]}>
@@ -760,7 +790,16 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        {(["vouchers", "employee-ledger", "vendor-ledger", "reconciliation", "reports"] as const).map((section) => (
+        <Route path="accounts/payment-queue/generate-combined-voucher" element={<ProtectedRoute allowedRoles={["accounts_officer", "super_admin"]}><AccountsPaymentQueuePage /></ProtectedRoute>} />
+        <Route path="accounts/vouchers" element={<ProtectedRoute allowedRoles={["accounts_officer", "super_admin"]}><AccountsVouchersPage /></ProtectedRoute>} />
+        <Route path="accounts/sap-entry" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><SapEntryPage/></ProtectedRoute>}/>
+        <Route path="accounts/sap-entry/pending" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><SapPendingPage/></ProtectedRoute>}/>
+        <Route path="accounts/sap-entry/preview" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><SapPreviewPage/></ProtectedRoute>}/>
+        <Route path="accounts/sap-entry/batches" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><SapBatchesPage/></ProtectedRoute>}/>
+        <Route path="accounts/sap-entry/:batchId" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><SapBatchDetailPage/></ProtectedRoute>}/>
+        <Route path="accounts/employee-ledger" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><EmployeeLedgerPage/></ProtectedRoute>}/>
+        <Route path="accounts/employee-ledger/:employeeId" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><EmployeeLedgerDetailPage/></ProtectedRoute>}/>
+        {(["vendor-ledger", "reconciliation", "reports"] as const).map((section) => (
           <Route
             key={section}
             path={`accounts/${section}`}
@@ -833,7 +872,8 @@ export function AppRoutes() {
               <DesignationsPage />
             </ProtectedRoute>
           }
-        />
+          />
+        <Route path="settings/work-types" element={<ProtectedRoute allowedRoles={["admin_hr", "super_admin"]}><WorkTypesPage /></ProtectedRoute>} />
         <Route
           path="settings/approval-matrix"
           element={
@@ -842,6 +882,15 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="reports/claims/ageing" element={<Navigate to="/reports/claim-ageing" replace/>}/>
+        <Route path="reports/claims/approval-delay" element={<Navigate to="/reports/claim-approval-delay" replace/>}/>
+        <Route path="reports/claims/project-cost" element={<Navigate to="/reports/project-claim-cost" replace/>}/>
+        <Route path="reports/claims/employee-ledger" element={<Navigate to="/reports/employee-claim-ledger" replace/>}/>
+        <Route path="reports/claims/deductions" element={<Navigate to="/reports/claim-deductions" replace/>}/>
+        <Route path="reports/accounts/payment-pending" element={<Navigate to="/reports/accounts-payment-pending" replace/>}/>
+        <Route path="reports/accounts/sap-export" element={<Navigate to="/reports/accounts-sap-export" replace/>}/>
+        <Route path="settings/sap-mapping" element={<ProtectedRoute allowedRoles={["super_admin"]}><SapMappingPage/></ProtectedRoute>}/>
+        <Route path="settings/signatures" element={<ProtectedRoute allowedRoles={["admin_hr","super_admin"]}><SignaturesPage/></ProtectedRoute>}/>
         <Route
           path="settings/delegations"
           element={
@@ -962,6 +1011,8 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="users/:userId/advance" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><UserAdvancePage/></ProtectedRoute>}/>
+        <Route path="users/:userId/signature" element={<ProtectedRoute allowedRoles={["admin_hr","super_admin"]}><UserSignaturePage/></ProtectedRoute>}/>
         <Route
           path="users/:userId/edit"
           element={

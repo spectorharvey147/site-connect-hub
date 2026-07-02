@@ -1,0 +1,1 @@
+import{describe,expect,it}from"vitest";import{calculateOutstanding}from"@/services/employeeFinanceService";describe("employee finance settlement",()=>{it("keeps the unpaid balance after a partial payment",()=>expect(calculateOutstanding(1000,400)).toBe(600));it("never produces a negative outstanding balance",()=>expect(calculateOutstanding(1000,1200)).toBe(0));});

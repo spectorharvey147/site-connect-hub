@@ -5,6 +5,8 @@ import {
   ReceiptText,
   Scale,
   UsersRound,
+  BadgeCheck,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 
@@ -12,8 +14,11 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent } from "@/components/ui/Card";
 
 const sections = [
+  { path: "/accounts/claim-verification", label: "Claim Accounts Verification", icon: BadgeCheck, target: "/accounts/claim-verification" },
   { path: "/accounts/payment-queue", label: "Payment Queue", icon: FileCheck2, target: "/accounts/payment-queue" },
   { path: "/accounts/vouchers", label: "Payment Vouchers", icon: ReceiptText, target: "/accounts/vouchers" },
+  { path: "/accounts/sap-entry", label: "SAP Entry", icon: FileSpreadsheet, target: "/accounts/sap-entry" },
+  { path: "/accounts/sap-entry/batches", label: "SAP Batches", icon: FileSpreadsheet, target: "/accounts/sap-entry/batches" },
   { path: "/accounts/employee-ledger", label: "Employee Ledger", icon: UsersRound, target: "/accounts/employee-ledger" },
   { path: "/accounts/vendor-ledger", label: "Vendor Ledger", icon: BookOpenCheck, target: "/accounts/vendor-ledger" },
   { path: "/accounts/reconciliation", label: "Reconciliation", icon: Scale, target: "/accounts/reconciliation" },

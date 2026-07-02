@@ -366,6 +366,12 @@ export const authService = {
       if (error) {
         throw new Error(error.message);
       }
+      const { error: activationError } = await supabase.rpc(
+        "activate_current_user_after_password_setup",
+      );
+      if (activationError) {
+        throw new Error(activationError.message);
+      }
     }
 
     return {

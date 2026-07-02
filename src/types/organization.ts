@@ -8,6 +8,8 @@ export interface Organization {
   organizationName: string;
   legalName?: string;
   logoUrl?: string;
+  voucherLogoPosition?: "left" | "right" | "hidden";
+  voucherLogoSize?: number;
   gstNumber?: string;
   panNumber?: string;
   address?: string;
@@ -42,6 +44,8 @@ export interface OrganizationInput {
   currency: string;
   timezone: string;
   logoUrl?: string;
+  voucherLogoPosition?: "left" | "right" | "hidden";
+  voucherLogoSize?: number;
 }
 
 export interface Department {

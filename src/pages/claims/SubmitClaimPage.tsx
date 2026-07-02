@@ -36,6 +36,7 @@ const claimDetailsSchema = z
   .object({
     title: z.string().trim().min(4, "Claim title is required."),
     projectId: z.string().trim().min(1, "Project is required."),
+    workType: z.string().trim().min(1, "Work type is required."),
     customerId: z.string().optional(),
     periodFrom: z.string().trim().min(1, "Start date is required."),
     periodTo: z.string().trim().min(1, "End date is required."),
@@ -113,6 +114,7 @@ export function SubmitClaimPage() {
     defaultValues: {
       title: "",
       projectId: "",
+      workType: "",
       customerId: "",
       periodFrom: new Date().toISOString().slice(0, 10),
       periodTo: new Date().toISOString().slice(0, 10),
@@ -352,6 +354,7 @@ export function SubmitClaimPage() {
     return {
       title: values.title.trim(),
       projectId: values.projectId,
+      workType: values.workType,
       customerId: isCommonProject ? values.customerId : selectedProject?.customerId,
       customerName: isCommonProject ? selectedCustomer?.customerName : selectedProject?.customerName,
       periodFrom: values.periodFrom,
@@ -485,6 +488,15 @@ export function SubmitClaimPage() {
                     </option>
                   ))}
                 </select>
+              </FormField>
+              <FormField label="Work Type" error={errors.workType?.message}>
+                <select className={selectClass} {...register("workType")}>
+                  <option value="">Select work type</option>
+                  {selectedProject?.workManagerMappings.map((mapping) => (
+                    <option key={mapping.workType} value={mapping.workType}>{mapping.workType}</option>
+                  ))}
+                </select>
+                {selectedProject && selectedProject.workManagerMappings.length === 0 ? <p className="mt-1 text-xs text-text-secondary">No work mappings configured. Add them in Project Master.</p> : null}
               </FormField>
               <Input
                 label="Customer"

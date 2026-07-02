@@ -14,7 +14,9 @@ export type StorageBucket =
   | "fuel-receipts"
   | "vendor-contracts"
   | "payment-proofs"
-  | "sap-exports";
+  | "sap-exports"
+  | "claim-vouchers"
+  | "user-signatures";
 
 export interface StoredFile {
   bucket: StorageBucket;
