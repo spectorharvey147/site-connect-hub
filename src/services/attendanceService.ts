@@ -2,6 +2,7 @@ import { DEMO_USERS, toAppUser } from "@/constants/demoData";
 import { PROJECT_OPTIONS } from "@/constants/claims";
 import {
   ATTENDANCE_STATUS_LABELS,
+  attendanceStatusUsesTime,
   SHIFTS,
 } from "@/constants/attendance";
 import { recordAuditLog } from "@/services/auditService";
@@ -27,6 +28,9 @@ type SupabaseClient = NonNullable<typeof supabase>;
 interface SupabaseProfileRow {
   id: string;
   full_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
   employee_id: string | null;
   employee_code: string | null;
 }
@@ -413,7 +417,7 @@ async function fetchProfiles(ids: string[]) {
   }
   const { data, error } = await attendanceClient()
     .from("user_profiles")
-    .select("id, full_name, employee_id, employee_code")
+    .select("id, full_name, first_name, last_name, email, employee_id, employee_code")
     .in("id", uniqueIds);
   if (error) {
     throw new Error(error.message);
@@ -485,8 +489,25 @@ function locationPointFromRow(
   };
 }
 
+function resolveAttendanceUserName(
+  userId: string,
+  profile: SupabaseProfileRow | undefined,
+  knownUser?: AppUser,
+) {
+  const profileName = profile?.full_name?.trim();
+  const isGenericName = !profileName || profileName.toLowerCase() === "user";
+  if (!isGenericName) return profileName;
+  if (knownUser?.id === userId && knownUser.fullName.trim().toLowerCase() !== "user") {
+    return knownUser.fullName.trim();
+  }
+  const parts = [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim();
+  if (parts) return parts;
+  return profile?.email?.split("@")[0] || profileName || "Unknown employee";
+}
+
 async function mapSupabaseAttendance(
   rows: SupabaseAttendanceRow[],
+  knownUser?: AppUser,
 ): Promise<AttendanceRecord[]> {
   if (rows.length === 0) {
     return [];
@@ -511,8 +532,11 @@ async function mapSupabaseAttendance(
     return {
       id: row.id,
       userId: row.user_id,
-      userName: profile?.full_name ?? "User",
-      employeeId: profile?.employee_code ?? profile?.employee_id ?? "",
+      userName: resolveAttendanceUserName(row.user_id, profile, knownUser),
+      employeeId:
+        profile?.employee_code ??
+        profile?.employee_id ??
+        (knownUser?.id === row.user_id ? knownUser.employeeCode ?? knownUser.employeeId : ""),
       projectId,
       projectName: project?.name ?? getProjectName(projectId),
       shiftId,
@@ -600,6 +624,7 @@ export const attendanceService = {
       }
       return mapSupabaseAttendance(
         ((data as unknown) as SupabaseAttendanceRow[] | null) ?? [],
+        user,
       );
     }
 
@@ -623,6 +648,7 @@ export const attendanceService = {
       }
       const [record] = await mapSupabaseAttendance(
         data ? [((data as unknown) as SupabaseAttendanceRow)] : [],
+        user,
       );
       return record;
     }
@@ -671,7 +697,7 @@ export const attendanceService = {
       }
       const [record] = await mapSupabaseAttendance([
         ((data as unknown) as SupabaseAttendanceRow),
-      ]);
+      ], user);
       await recordAuditLog({
         userId: user.id,
         action: "attendance.check_in",
@@ -749,7 +775,7 @@ export const attendanceService = {
       }
       const [updatedRecord] = await mapSupabaseAttendance([
         ((data as unknown) as SupabaseAttendanceRow),
-      ]);
+      ], user);
       await recordAuditLog({
         userId: user.id,
         action: "attendance.check_out",
@@ -821,14 +847,15 @@ export const attendanceService = {
     }
 
     const shift = getShift(input.shiftId);
+    const checkInTime = attendanceStatusUsesTime(input.status) ? input.checkInTime : undefined;
+    const checkOutTime = attendanceStatusUsesTime(input.status) ? input.checkOutTime : undefined;
     const allowsOvernightCheckout =
       input.status === "night_shift" || getTimeValue(input.date, shift.endTime) < getTimeValue(input.date, shift.startTime);
     if (
-      input.checkInTime &&
-      input.checkOutTime &&
+      checkInTime &&
+      checkOutTime &&
       !allowsOvernightCheckout &&
-      getTimeValue(input.date, input.checkOutTime) <=
-        getTimeValue(input.date, input.checkInTime)
+      getTimeValue(input.date, checkOutTime) <= getTimeValue(input.date, checkInTime)
     ) {
       throw new Error("Check-out must be after check-in.");
     }
@@ -851,12 +878,12 @@ export const attendanceService = {
         );
     const workedHours = calculateWorkedHours(
       input.date,
-      input.checkInTime,
-      input.checkOutTime,
+      checkInTime,
+      checkOutTime,
     );
     const status =
       input.status === "present" || input.status === "late" || input.status === "half_day"
-        ? calculateStatus(input.date, input.shiftId, input.checkInTime, input.checkOutTime)
+        ? calculateStatus(input.date, input.shiftId, checkInTime, checkOutTime)
         : input.status;
 
     if (shouldUseSupabaseAttendance()) {
@@ -872,8 +899,8 @@ export const attendanceService = {
         hod_user_id: attendanceUser.hodUserId ?? null,
         shift_id: shiftId,
         date: input.date,
-        check_in_time: input.checkInTime || null,
-        check_out_time: input.checkOutTime || null,
+        check_in_time: checkInTime || null,
+        check_out_time: checkOutTime || null,
         status,
         worked_hours: workedHours,
         remarks: input.remarks,
@@ -898,7 +925,7 @@ export const attendanceService = {
       }
       const [record] = await mapSupabaseAttendance([
         ((data as unknown) as SupabaseAttendanceRow),
-      ]);
+      ], attendanceUser);
       await recordAuditLog({
         userId: actor.id,
         action: existing ? "attendance.manual_update" : "attendance.manual_create",
@@ -929,8 +956,8 @@ export const attendanceService = {
       shiftId: shift.id,
       shiftName: shift.name,
       date: input.date,
-      checkInTime: input.checkInTime,
-      checkOutTime: input.checkOutTime,
+      checkInTime,
+      checkOutTime,
       status,
       workedHours,
       remarks: input.remarks,

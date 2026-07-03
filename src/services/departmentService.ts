@@ -6,6 +6,7 @@ import type { Department, DepartmentInput } from "@/types/organization";
 
 interface DepartmentRow {
   id: string;
+  name: string;
   organization_id: string;
   parent_department_id: string | null;
   department_code: string;
@@ -81,6 +82,9 @@ function toDepartmentRow(
   actor: AppUser,
 ): Partial<DepartmentRow> {
   return {
+    // `name` belongs to the original departments schema and is still NOT NULL
+    // in upgraded databases. Keep it synchronized with the canonical field.
+    name: input.departmentName.trim(),
     organization_id: input.organizationId,
     parent_department_id: input.parentDepartmentId || null,
     department_code: normalizeCode(input.departmentCode),

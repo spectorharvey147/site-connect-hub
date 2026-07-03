@@ -12,6 +12,8 @@ import { Link } from "react-router-dom";
 import { ConversationList } from "@/components/messages/ConversationList";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
@@ -34,23 +36,33 @@ export function MessagesInboxPage() {
   });
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [summary, setSummary] = useState<MessageDashboardSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     if (!user) {
       return;
     }
+    setLoading(true);
+    setLoadError("");
     void Promise.all([
       messagingService.listConversations(user, filters),
       messagingService.getDashboard(user),
     ]).then(([list, dashboard]) => {
       setConversations(list);
       setSummary(dashboard.summary);
-    });
+    }).catch((error) => {
+      setLoadError(error instanceof Error ? error.message : "Unable to load messages.");
+    }).finally(() => setLoading(false));
   }, [filters, user]);
 
-  if (!user || !summary) {
+  if (!user) {
     return null;
   }
+
+  if (loading) return <LoadingState label="Loading messages" />;
+  if (loadError) return <ErrorState message={loadError} />;
+  if (!summary) return <ErrorState message="Unable to load messages." />;
 
   function setTab(tab: ConversationTab) {
     setFilters((current) => ({ ...current, tab }));

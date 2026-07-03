@@ -35,6 +35,15 @@ export const ATTENDANCE_STATUS_TONES: Record<
   missed_correction: "warning",
 };
 
+export const ATTENDANCE_STATUSES_WITH_TIME: AttendanceStatus[] = [
+  "present", "late", "half_day", "work_from_home", "travelling",
+  "holiday_present", "week_off_present", "night_shift",
+];
+
+export function attendanceStatusUsesTime(status: AttendanceStatus) {
+  return ATTENDANCE_STATUSES_WITH_TIME.includes(status);
+}
+
 export const SHIFTS: Shift[] = [
   {
     id: "shift-general",

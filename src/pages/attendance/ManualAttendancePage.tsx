@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { ATTENDANCE_STATUS_LABELS } from "@/constants/attendance";
+import { ATTENDANCE_STATUS_LABELS, attendanceStatusUsesTime } from "@/constants/attendance";
 import { attendanceService } from "@/services/attendanceService";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectableProjects } from "@/hooks/useSelectableProjects";
@@ -67,6 +67,15 @@ export function ManualAttendancePage() {
     value: ManualAttendanceInput[Key],
   ) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateStatus(nextStatus: AttendanceStatus) {
+    setForm((current) => ({
+      ...current,
+      status: nextStatus,
+      checkInTime: attendanceStatusUsesTime(nextStatus) ? current.checkInTime || "09:00" : undefined,
+      checkOutTime: attendanceStatusUsesTime(nextStatus) ? current.checkOutTime || "18:00" : undefined,
+    }));
   }
 
   async function submit() {
@@ -146,9 +155,7 @@ export function ManualAttendancePage() {
             <select
               className={selectClass}
               value={form.status}
-              onChange={(event) =>
-                update("status", event.target.value as AttendanceStatus)
-              }
+              onChange={(event) => updateStatus(event.target.value as AttendanceStatus)}
             >
               {Object.entries(ATTENDANCE_STATUS_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -163,18 +170,10 @@ export function ManualAttendancePage() {
             value={form.date}
             onChange={(event) => update("date", event.target.value)}
           />
-          <Input
-            label="Check-in time"
-            type="time"
-            value={form.checkInTime ?? ""}
-            onChange={(event) => update("checkInTime", event.target.value)}
-          />
-          <Input
-            label="Check-out time"
-            type="time"
-            value={form.checkOutTime ?? ""}
-            onChange={(event) => update("checkOutTime", event.target.value)}
-          />
+          {attendanceStatusUsesTime(form.status) ? <>
+            <Input label="Check-in time" type="time" value={form.checkInTime ?? ""} onChange={(event) => update("checkInTime", event.target.value)} />
+            <Input label="Check-out time" type="time" value={form.checkOutTime ?? ""} onChange={(event) => update("checkOutTime", event.target.value)} />
+          </> : null}
           <div className="md:col-span-2">
             <Textarea
               label="Remarks"

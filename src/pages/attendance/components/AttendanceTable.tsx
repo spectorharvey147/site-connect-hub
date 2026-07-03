@@ -1,0 +1,8 @@
+import { AttendanceStatusBadge } from "@/components/attendance/AttendanceStatusBadge";
+import type { AttendanceRecord } from "@/types/attendance";
+
+export function AttendanceTable({ records }: { records: AttendanceRecord[] }) {
+  if (!records.length) return <div className="py-12 text-center"><p className="font-semibold text-text-primary">No attendance records found.</p><p className="mt-1 text-sm text-text-secondary">Try changing filters.</p></div>;
+  const headers = ["Date", "Employee", "Project", "Status", "Check In", "Check Out", "Hours", "Remarks"];
+  return <div className="max-h-[32rem] overflow-auto"><table className="min-w-full divide-y divide-surface-border text-sm"><thead className="sticky top-0 z-10 bg-slate-50"><tr>{headers.map((header) => <th key={header} className="whitespace-nowrap px-4 py-3 text-left font-semibold text-text-secondary">{header}</th>)}</tr></thead><tbody className="divide-y divide-surface-border bg-white">{records.map((record) => <tr key={record.id} className="hover:bg-brand-light/40"><td className="whitespace-nowrap px-4 py-3 text-text-secondary">{record.date}</td><td className="px-4 py-3 font-semibold">{record.userName}<span className="block text-xs font-normal text-text-secondary">{record.employeeId}</span></td><td className="px-4 py-3 text-text-secondary">{record.projectName}</td><td className="px-4 py-3"><AttendanceStatusBadge status={record.status} /></td><td className="px-4 py-3">{record.checkInTime ?? "—"}</td><td className="px-4 py-3">{record.checkOutTime ?? "—"}</td><td className="px-4 py-3 font-bold">{record.workedHours.toFixed(1)}</td><td className="max-w-64 px-4 py-3 text-text-secondary">{record.remarks?.trim() || "—"}</td></tr>)}</tbody></table></div>;
+}

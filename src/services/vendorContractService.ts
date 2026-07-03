@@ -207,7 +207,7 @@ async function saveNormalizedContractDetails(contract: VendorContract, actor: Ap
       .from("machinery_contract_terms")
       .delete()
       .eq("vendor_contract_id", contract.id);
-    const { error: termsError } = await supabase.from("machinery_contract_terms").insert({
+    const { data: machineryTerms, error: termsError } = await supabase.from("machinery_contract_terms").insert({
       organization_id: contract.organizationId,
       project_id: contract.projectId,
       department_id: contract.departmentId ?? null,
@@ -232,7 +232,7 @@ async function saveNormalizedContractDetails(contract: VendorContract, actor: Ap
       status: contract.status === "active" ? "active" : "inactive",
       remarks: contract.remarks,
       created_by: contract.createdBy,
-    });
+    }).select("id").single();
     if (termsError) throw new Error(termsError.message);
     const machineNumbers =
       contract.contractMachineNumbers
@@ -253,6 +253,7 @@ async function saveNormalizedContractDetails(contract: VendorContract, actor: Ap
             organization_id: contract.organizationId,
             project_id: contract.projectId,
             contract_id: contract.id,
+            contract_term_id: machineryTerms.id,
             vendor_id: contract.vendorId,
             vendor_contract_id: contract.id,
             machine_type: contract.machineType ?? "Machine",

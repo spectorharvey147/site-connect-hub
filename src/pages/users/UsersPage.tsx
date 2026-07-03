@@ -237,7 +237,7 @@ export function UsersPage() {
         />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+      <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>Invite User</CardTitle>
@@ -420,8 +420,8 @@ export function UsersPage() {
             <CardTitle>User Register</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-surface-border text-sm">
+            <div className="w-full overflow-x-auto">
+              <table className="min-w-[1100px] w-full divide-y divide-surface-border text-sm">
                 <thead className="bg-slate-50 text-left text-xs uppercase tracking-normal text-text-secondary">
                   <tr>
                     <th className="px-4 py-3 font-semibold">User</th>
@@ -435,7 +435,7 @@ export function UsersPage() {
                 <tbody className="divide-y divide-surface-border bg-white">
                   {users.map((managedUser) => (
                     <tr key={managedUser.id}>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         <p className="font-bold text-text-primary">
                           {managedUser.fullName}
                         </p>
@@ -444,15 +444,15 @@ export function UsersPage() {
                           {managedUser.email}
                         </p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="whitespace-nowrap px-4 py-3">
                         <Badge tone={managedUser.role === "hod" ? "warning" : "info"}>
                           {ROLE_SHORT_LABELS[managedUser.role]}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-text-secondary">
+                      <td className="whitespace-nowrap px-4 py-3 text-text-secondary">
                         {managedUser.department ?? "Unassigned"}
                       </td>
-                      <td className="px-4 py-3 text-text-secondary">
+                      <td className="whitespace-nowrap px-4 py-3 text-text-secondary">
                         <p>
                           Manager:{" "}
                           {users.find(
