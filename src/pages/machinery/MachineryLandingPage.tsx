@@ -13,6 +13,8 @@ import { MachineLogTable } from "@/components/machinery/MachineLogTable";
 import { MachineryContractTable } from "@/components/machinery/MachineryContractTable";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
+import { ErrorState } from "@/components/shared/ErrorState";
+import { LoadingState } from "@/components/shared/LoadingState";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
@@ -28,21 +30,31 @@ export function MachineryLandingPage() {
   const [summary, setSummary] = useState<MachinerySummary | null>(null);
   const [recentLogs, setRecentLogs] = useState<MachineLog[]>([]);
   const [activeContracts, setActiveContracts] = useState<MachineryContract[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   useEffect(() => {
     if (!user) {
       return;
     }
+    setLoading(true);
+    setLoadError("");
     void machineryService.getDashboard(user).then((dashboard) => {
       setSummary(dashboard.summary);
       setRecentLogs(dashboard.recentLogs);
       setActiveContracts(dashboard.activeContracts);
-    });
+    }).catch((error) => {
+      setLoadError(error instanceof Error ? error.message : "Unable to load machinery.");
+    }).finally(() => setLoading(false));
   }, [user]);
 
-  if (!user || !summary) {
+  if (!user) {
     return null;
   }
+
+  if (loading) return <LoadingState label="Loading machinery" />;
+  if (loadError) return <ErrorState message={loadError} />;
+  if (!summary) return <ErrorState message="Unable to load machinery." />;
 
   return (
     <>

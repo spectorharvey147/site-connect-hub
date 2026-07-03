@@ -66,7 +66,7 @@ export const machineryRepository = {
     const client = requireSupabase();
     let query = client
       .from("machinery_contract_terms")
-      .select("*,machinery_contract_machines(machine_number,machine_type)")
+      .select("*,machinery_contract_machines!contract_term_id(machine_number,machine_type)")
       .eq("organization_id", actor.organizationId!)
       .order("created_at", { ascending: false });
     if (filters?.vendorId) query = query.eq("vendor_id", filters.vendorId);
@@ -146,7 +146,8 @@ export const machineryRepository = {
         input.machineNumbers.map((machineNumber) => ({
           organization_id: actor.organizationId,
           project_id: projectId,
-          contract_id: contractId,
+          contract_id: null,
+          contract_term_id: contractId,
           vendor_id: input.vendorId,
           machine_type: input.machineType,
           machine_number: machineNumber,
