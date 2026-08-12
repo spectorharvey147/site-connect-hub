@@ -10,7 +10,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import {
   LABOUR_RECORD_STATUS_LABELS,
-  LABOUR_VENDORS,
 } from "@/constants/casualLabour";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectableProjects } from "@/hooks/useSelectableProjects";
@@ -22,6 +21,7 @@ import type {
   CasualLabourAttendance,
   LabourFilters,
   LabourRecordStatus,
+  LabourVendor,
 } from "@/types/casualLabour";
 
 const selectClass =
@@ -38,11 +38,13 @@ export function LabourRegisterPage() {
   });
   const [records, setRecords] = useState<CasualLabourAttendance[]>([]);
   const [approving, setApproving] = useState(false);
+  const [vendors, setVendors] = useState<LabourVendor[]>(casualLabourService.listVendors());
 
   useEffect(() => {
     if (!user) {
       return;
     }
+    void casualLabourService.loadVendors().then(setVendors);
     void casualLabourService.listAttendance(user, filters).then(setRecords);
   }, [filters, user]);
 
@@ -145,7 +147,7 @@ export function LabourRegisterPage() {
               onChange={(event) => update("vendorId", event.target.value)}
             >
               <option value="">All Vendors</option>
-              {LABOUR_VENDORS.map((vendor) => (
+              {vendors.map((vendor) => (
                 <option key={vendor.id} value={vendor.id}>
                   {vendor.name}
                 </option>

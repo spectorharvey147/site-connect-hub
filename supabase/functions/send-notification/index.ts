@@ -36,6 +36,9 @@ const supportedEmailEvents = new Set([
   "voucher_generated",
   "payment_processed",
   "message_mention",
+  "user_created",
+  "claim_query_raised",
+  "claim_query_responded",
 ]);
 
 function json(body: unknown, status = 200) {

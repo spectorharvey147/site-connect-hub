@@ -147,6 +147,7 @@ export type ApprovalApproverRole =
   | "super_admin"
   | "accounts"
   | "store_admin"
+  /** @deprecated Legacy database value. Use super_admin for Master Exception Approval. */
   | "finance_head";
 
 export interface ApprovalLevelConfig {

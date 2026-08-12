@@ -1,4 +1,4 @@
-import { LogIn, LogOut, MapPin } from "lucide-react";
+import { Camera, LogIn, LogOut, MapPin } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -10,8 +10,9 @@ import { FormField } from "@/components/forms/FormField";
 import { attendanceService } from "@/services/attendanceService";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectableProjects } from "@/hooks/useSelectableProjects";
-import { locationService } from "@/services/locationService";
+import { LocationCaptureError, locationService } from "@/services/locationService";
 import { offlineQueueService } from "@/services/offlineQueueService";
+import { uploadAttendanceSelfie } from "@/services/attendanceEvidenceService";
 import type { AttendanceRecord, GeoLocationPoint } from "@/types/attendance";
 import { evaluateGeofence } from "@/utils/geo";
 
@@ -25,6 +26,8 @@ export function QuickCheckInPage() {
   const [location, setLocation] = useState<GeoLocationPoint | undefined>();
   const [projectId, setProjectId] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selfie, setSelfie] = useState<File>();
+  const [locationFailure, setLocationFailure] = useState<LocationCaptureError>();
 
   const loadToday = useCallback(async () => {
     if (!user) {
@@ -50,9 +53,15 @@ export function QuickCheckInPage() {
   }
 
   async function captureLocation() {
-    const captured = await locationService.capture();
-    setLocation(captured);
-    return captured;
+    try {
+      const captured = await locationService.capture();
+      setLocationFailure(undefined);
+      setLocation(captured);
+      return captured;
+    } catch (error) {
+      if (error instanceof LocationCaptureError) setLocationFailure(error);
+      throw error;
+    }
   }
 
   const selectedProject = projects.find((project) => project.id === projectId);
@@ -75,6 +84,8 @@ export function QuickCheckInPage() {
     setLoading(true);
     try {
       const captured = location ?? (await captureLocation());
+      if (!selfie) throw new Error("Capture a live selfie before checking in.");
+      const mutationId=crypto.randomUUID(), capturedAt=new Date().toISOString();
       if (!selectedProject) {
         throw new Error("Select an assigned project.");
       }
@@ -93,12 +104,13 @@ export function QuickCheckInPage() {
       if (!navigator.onLine) {
         await offlineQueueService.enqueue({
           type: "attendance-check-in",
-          payload: { userId: currentUser.id, projectId, location: captured },
+          payload: { userId: currentUser.id, projectId, location: captured, selfie, mutationId, capturedAt },
         });
         toast.success("Check-in queued and will be available for sync when online.");
         return;
       }
-      await attendanceService.checkIn(currentUser, captured, projectId);
+      const selfiePath=await uploadAttendanceSelfie(currentUser.organizationId ?? "",currentUser.id,selfie,mutationId);
+      await attendanceService.checkIn(currentUser, captured, projectId,{selfiePath,capturedAt,clientMutationId:mutationId});
       toast.success("Checked in successfully.");
       await loadToday();
     } catch (error) {
@@ -116,15 +128,18 @@ export function QuickCheckInPage() {
     setLoading(true);
     try {
       const captured = location ?? (await captureLocation());
+      if (!selfie) throw new Error("Capture a live selfie before checking out.");
+      const mutationId=crypto.randomUUID(), capturedAt=new Date().toISOString();
       if (!navigator.onLine) {
         await offlineQueueService.enqueue({
           type: "attendance-check-out",
-          payload: { userId: currentUser.id, location: captured },
+          payload: { userId: currentUser.id, location: captured, selfie, mutationId, capturedAt },
         });
         toast.success("Check-out queued and will sync when online.");
         return;
       }
-      await attendanceService.checkOut(currentUser, captured);
+      const selfiePath=await uploadAttendanceSelfie(currentUser.organizationId ?? "",currentUser.id,selfie,mutationId);
+      await attendanceService.checkOut(currentUser, captured,{selfiePath,capturedAt,clientMutationId:mutationId});
       toast.success("Checked out successfully.");
       await loadToday();
     } catch (error) {
@@ -176,9 +191,10 @@ export function QuickCheckInPage() {
               </p>
               <p className="mt-2 text-sm text-text-secondary">
                 {location
-                  ? `${geofence?.atSite ? "At Site" : geofence ? "Away From Site" : "Location captured"} at ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)} with ${location.accuracy}m accuracy${geofence ? `, ${Math.round(geofence.distanceMeters)} m from site center.` : "."}`
+                  ? `${location.source === "android" ? "Android GPS" : "Browser location"}: ${geofence?.atSite ? "At Site" : geofence ? "Away From Site" : "captured"} with ${location.accuracy}m accuracy${geofence ? `, ${Math.round(geofence.distanceMeters)} m from site center.` : "."}`
                   : "Capture location before punching attendance."}
               </p>
+              {locationFailure ? <p className="mt-2 text-sm font-semibold text-red-700">{locationFailure.message}</p> : null}
             </div>
             <Button
               type="button"
@@ -188,6 +204,17 @@ export function QuickCheckInPage() {
             >
               Capture GPS
             </Button>
+            {locationFailure?.code === "permission_denied_permanently" ? (
+              <Button type="button" variant="secondary" onClick={() => void locationService.openSettings("app").catch((error) => toast.error(error.message))}>Open Device Settings</Button>
+            ) : null}
+            {locationFailure?.code === "gps_off" ? (
+              <Button type="button" variant="secondary" onClick={() => void locationService.openSettings("location").catch((error) => toast.error(error.message))}>Open Location Settings</Button>
+            ) : null}
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-surface-border p-3 text-sm font-semibold">
+              <Camera className="h-4 w-4 text-brand-blue" />
+              {selfie ? "Selfie captured" : "Capture live selfie"}
+              <input className="sr-only" type="file" accept="image/*" capture="user" onChange={e=>setSelfie(e.target.files?.[0])}/>
+            </label>
           </CardContent>
         </Card>
 

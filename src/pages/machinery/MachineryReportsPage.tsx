@@ -16,13 +16,16 @@ import type {
   MachineryContract,
   MachinerySummary,
   MachineType,
+  MachineryUsageBill,
 } from "@/types/machinery";
+import { formatCurrency } from "@/utils/format";
 
 export function MachineryReportsPage() {
   const { user } = useAuth();
   const [summary, setSummary] = useState<MachinerySummary | null>(null);
   const [logs, setLogs] = useState<MachineLog[]>([]);
   const [contracts, setContracts] = useState<MachineryContract[]>([]);
+  const [bills, setBills] = useState<MachineryUsageBill[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -32,6 +35,7 @@ export function MachineryReportsPage() {
       setSummary(dashboard.summary);
       setLogs(dashboard.recentLogs);
       setContracts(dashboard.activeContracts);
+      setBills(dashboard.bills);
     });
   }, [user]);
 
@@ -177,6 +181,27 @@ export function MachineryReportsPage() {
               </div>
             ))}
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader><CardTitle>Approved Machinery Bill Sources</CardTitle></CardHeader>
+        <CardContent>
+          <div className="overflow-x-auto"><table className="min-w-full divide-y divide-surface-border text-sm">
+            <thead className="bg-slate-50"><tr>
+              <th className="px-4 py-3 text-left">Date</th><th className="px-4 py-3 text-left">Machine</th>
+              <th className="px-4 py-3 text-left">Vendor</th><th className="px-4 py-3 text-right">Hours</th>
+              <th className="px-4 py-3 text-right">Gross</th><th className="px-4 py-3 text-right">Breakdown deduction</th>
+              <th className="px-4 py-3 text-right">Net</th>
+            </tr></thead>
+            <tbody className="divide-y divide-surface-border">{bills.map((bill) => <tr key={bill.id}>
+              <td className="px-4 py-3">{bill.periodFrom}</td><td className="px-4 py-3 font-semibold">{bill.machineNumber}</td>
+              <td className="px-4 py-3">{bill.vendorName}</td><td className="px-4 py-3 text-right">{bill.usageHours.toFixed(1)}</td>
+              <td className="px-4 py-3 text-right">{formatCurrency(bill.baseAmount)}</td>
+              <td className="px-4 py-3 text-right">{formatCurrency(bill.breakdownDeduction)}</td>
+              <td className="px-4 py-3 text-right font-bold">{formatCurrency(bill.netAmount)}</td>
+            </tr>)}</tbody>
+          </table></div>
         </CardContent>
       </Card>
     </>

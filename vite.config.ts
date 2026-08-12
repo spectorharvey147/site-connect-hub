@@ -14,6 +14,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 750,
     rollupOptions: {
       output: {
+        onlyExplicitManualChunks: true,
         manualChunks(id) {
           const normalizedId = id.split("\\").join("/");
           if (!id.includes("node_modules")) {
@@ -39,7 +40,13 @@ export default defineConfig({
             return "charts";
           }
           if (id.includes("jspdf") || id.includes("fflate")) {
-            return "pdf";
+            return "pdf-render";
+          }
+          if (id.includes("pdf-lib")) {
+            return "pdf-attachments";
+          }
+          if (id.includes("jszip")) {
+            return "zip-excel";
           }
           if (id.includes("html2canvas")) {
             return "html-canvas";

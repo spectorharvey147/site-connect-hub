@@ -10,6 +10,7 @@ import type {
   DprInput,
   DprStatus,
 } from "@/types/fieldOperations";
+import { storageService } from "@/services/storageService";
 
 export const fieldOperationsRepository = {
   async list(actor: AppUser) {
@@ -25,7 +26,7 @@ export const fieldOperationsRepository = {
       projectNameMap(rows.map((row) => String(row.project_id))),
       profileNameMap(rows.flatMap((row) => [String(row.submitted_by), String(row.reviewed_by ?? "")])),
     ]);
-    return rows.map((row): DailyProgressReport => ({
+    return Promise.all(rows.map(async (row): Promise<DailyProgressReport> => ({
       id: String(row.id),
       dprNumber: String(row.dpr_number),
       projectId: String(row.project_id),
@@ -64,17 +65,24 @@ export const fieldOperationsRepository = {
       nextDayPlan: String(row.next_day_plan ?? ""),
       plannedManpower: Number(row.planned_manpower),
       plannedEquipment: String(row.planned_equipment ?? ""),
-      photos: ((row.dpr_photos as DataRow[] | null) ?? []).map((item) => ({
+      photos: await Promise.all(((row.dpr_photos as DataRow[] | null) ?? []).map(async (item) => {
+        const bucket = String(item.storage_bucket ?? "dpr-photos") as "dpr-photos";
+        const path = item.storage_path ? String(item.storage_path) : undefined;
+        let url = String(item.file_url ?? "");
+        if (path) url = await storageService.createSignedUrl(bucket, path, 900);
+        return {
         id: String(item.id),
         fileName: String(item.file_name),
         fileType: String(item.file_type ?? ""),
         fileSize: Number(item.file_size ?? 0),
-        url: String(item.file_url),
+        url,
+        storageBucket: bucket,
+        storagePath: path,
         caption: item.caption ? String(item.caption) : undefined,
         uploadedBy: String(item.uploaded_by ?? row.submitted_by),
         uploadedByName: profiles.get(String(item.uploaded_by ?? row.submitted_by)) ?? "User",
         createdAt: String(item.created_at),
-      })),
+      }})),
       status: row.status as DailyProgressReport["status"],
       submittedAt: row.submitted_at ? String(row.submitted_at) : undefined,
       reviewedBy: row.reviewed_by ? String(row.reviewed_by) : undefined,
@@ -83,7 +91,7 @@ export const fieldOperationsRepository = {
       reviewComments: row.review_comments ? String(row.review_comments) : undefined,
       createdAt: String(row.created_at),
       updatedAt: String(row.updated_at),
-    }));
+    })));
   },
 
   async save(
@@ -92,121 +100,36 @@ export const fieldOperationsRepository = {
     status: Extract<DprStatus, "draft" | "submitted">,
   ) {
     const client = requireSupabase();
-    const dprNumber = `DPR-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    const { data, error } = await client.from("daily_progress_reports").insert({
-      organization_id: actor.organizationId,
-      project_id: input.projectId,
-      department_id: actor.departmentId ?? null,
-      dpr_number: dprNumber,
-      report_date: input.reportDate,
-      shift_id: input.shiftId,
-      weather: input.weather,
-      next_day_plan: input.nextDayPlan,
-      planned_manpower: input.plannedManpower,
-      planned_equipment: input.plannedEquipment,
-      status,
-      submitted_by: actor.id,
-      submitted_at: status === "submitted" ? new Date().toISOString() : null,
-      created_by: actor.id,
-    }).select("id").single();
-    if (error) throw new Error(error.message);
-    const dprId = String(data.id);
-    const results = await Promise.all([
-      input.activities.length
-        ? client.from("dpr_activities").insert(input.activities.map((item) => ({
-            id: item.id || crypto.randomUUID(),
-            dpr_id: dprId,
-            activity_name: item.activityName,
-            custom_activity_name: item.customActivityName ?? null,
-            description: item.description,
-            completion_percent: item.completionPercent,
-            machines_used: item.machinesUsed,
-            custom_machines: item.customMachines ?? [],
-            male_labor: item.labor.male,
-            female_labor: item.labor.female,
-            supervisors: item.labor.supervisors,
-            company_staff: item.labor.companyStaff,
-            comments: item.comments ?? null,
-          })))
-        : Promise.resolve({ error: null }),
-      input.issues.length
-        ? client.from("dpr_issues").insert(input.issues.map((item) => ({
-            id: item.id || crypto.randomUUID(),
-            dpr_id: dprId,
-            issue_type: item.issueType,
-            severity: item.severity,
-            description: item.description,
-            resolution_notes: item.resolutionNotes ?? null,
-            status: item.status,
-          })))
-        : Promise.resolve({ error: null }),
-      input.photos.length
-        ? client.from("dpr_photos").insert(input.photos.map((item) => ({
-            id: item.id || crypto.randomUUID(),
-            dpr_id: dprId,
-            file_url: item.url,
-            file_name: item.fileName,
-            file_type: item.fileType,
-            file_size: item.fileSize,
-            caption: item.caption ?? null,
-            uploaded_by: actor.id,
-          })))
-        : Promise.resolve({ error: null }),
-    ]);
-    const detailError = results.find((result) => result.error)?.error;
-    if (detailError) {
-      await client.from("daily_progress_reports").delete().eq("id", dprId);
-      throw new Error(detailError.message);
-    }
-    const labourCount = input.activities.reduce(
-      (sum, item) =>
-        sum +
-        item.labor.male +
-        item.labor.female +
-        item.labor.supervisors +
-        item.labor.companyStaff,
-      0,
-    );
-    const machineryUsed = input.activities.flatMap((item) => [
-      ...item.machinesUsed,
-      ...(item.customMachines ?? []),
-    ]);
-    const completionPercentage =
-      input.activities.length > 0
-        ? input.activities.reduce((sum, item) => sum + item.completionPercent, 0) /
-          input.activities.length
-        : 0;
-    const { error: canonicalError } = await client.from("dpr_reports").insert({
-      organization_id: actor.organizationId,
-      project_id: input.projectId,
-      department_id: actor.departmentId ?? null,
-      daily_progress_report_id: dprId,
-      report_number: dprNumber,
-      report_date: input.reportDate,
-      weather: input.weather,
-      labour_count: labourCount,
-      machinery_used: machineryUsed,
-      completion_percentage: completionPercentage,
-      issues: input.issues.map((item) => item.description).join("\n"),
-      next_day_plan: input.nextDayPlan,
-      status,
-      created_by: actor.id,
+    const { data, error } = await client.rpc("save_daily_progress_report", {
+      p_dpr_id: input.id ?? null,
+      p_project_id: input.projectId,
+      p_report_date: input.reportDate,
+      p_shift_id: input.shiftId,
+      p_weather: input.weather,
+      p_next_day_plan: input.nextDayPlan,
+      p_planned_manpower: input.plannedManpower,
+      p_planned_equipment: input.plannedEquipment,
+      p_status: status,
+      p_activities: input.activities,
+      p_issues: input.issues,
+      p_photos: input.photos.map((photo) => ({
+        id: /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(photo.id) ? photo.id : crypto.randomUUID(), file_name: photo.fileName,
+        file_type: photo.fileType, file_size: photo.fileSize, caption: photo.caption ?? null,
+        storage_bucket: photo.storageBucket ?? "dpr-photos", storage_path: photo.storagePath,
+      })),
     });
-    if (canonicalError) {
-      await client.from("daily_progress_reports").delete().eq("id", dprId);
-      throw new Error(canonicalError.message);
-    }
+    if (error) throw new Error(error.message);
+    const dprId = String(data);
     return (await this.list(actor)).find((row) => row.id === dprId)!;
   },
 
   async review(id: string, actor: AppUser, status: "reviewed" | "returned", comments: string) {
     const client = requireSupabase();
-    const { error } = await client.from("daily_progress_reports").update({
-      status,
-      reviewed_by: actor.id,
-      reviewed_at: new Date().toISOString(),
-      review_comments: comments,
-    }).eq("id", id);
+    const { error } = await client.rpc("review_daily_progress_report", {
+      target_dpr_id: id,
+      decision: status,
+      comments,
+    });
     if (error) throw new Error(error.message);
     return (await this.list(actor)).find((row) => row.id === id)!;
   },

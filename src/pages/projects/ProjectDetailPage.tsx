@@ -61,6 +61,7 @@ export function ProjectDetailPage() {
             <Summary label="Start Date" value={project.startDate ?? "-"} />
             <Summary label="End Date" value={project.endDate ?? "-"} />
             <Summary label="Geofence" value={`${project.geofenceRadius} m`} />
+            <Summary label="GPS Attendance" value={project.attendanceReady ? "Ready and verified" : "Not ready — check enabled status, coordinates, radius and verification"} />
             <Summary label="Budget" value={new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(project.projectBudget)} />
             <div className="md:col-span-2"><Summary label="Description" value={project.description ?? "-"} /></div>
           </CardContent>

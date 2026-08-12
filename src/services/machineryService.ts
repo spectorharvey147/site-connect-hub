@@ -357,7 +357,7 @@ function nextLogNumber(logs: MachineLog[]) {
 }
 
 function canUseMachinery(user: AppUser) {
-  return ["site_staff", "manager", "admin_hr", "super_admin"].includes(user.role);
+  return ["site_staff", "manager", "hod", "admin_hr", "super_admin"].includes(user.role);
 }
 
 function canManageContracts(user: AppUser) {
@@ -368,14 +368,14 @@ function canViewLog(user: AppUser, log: MachineLog) {
   if (log.submittedBy === user.id) {
     return true;
   }
-  if (user.role === "manager") {
+  if (["manager", "hod"].includes(user.role)) {
     return user.projectIds.includes(log.projectId);
   }
   return ["admin_hr", "super_admin"].includes(user.role);
 }
 
 function canApproveLog(user: AppUser, log: MachineLog) {
-  if (["admin_hr", "super_admin"].includes(user.role)) {
+  if (["hod", "admin_hr", "super_admin"].includes(user.role)) {
     return true;
   }
   return user.role === "manager" && user.projectIds.includes(log.projectId);
@@ -698,14 +698,20 @@ export const machineryService = {
     );
   },
 
-  async getDashboard(user: AppUser) {
-    const logs = await this.listLogs(user);
-    const contracts = await this.listContracts(user);
+  async getDashboard(user: AppUser, projectId?: string) {
+    const [logs, contracts, bills] = await Promise.all([
+      this.listLogs(user, projectId ? { projectId } : undefined),
+      this.listContracts(user).then((rows) => projectId ? rows.filter((row) => row.projectId === projectId) : rows),
+      isSupabaseConfigured ? machineryRepository.listBills(user).then((rows) => projectId ? rows.filter((row) => row.projectId === projectId) : rows) : Promise.resolve([]),
+    ]);
+    const summary = summarize(logs);
+    summary.approvedBillValue = bills.reduce((total, bill) => total + bill.netAmount, 0);
     return {
-      summary: summarize(logs),
+      summary,
       recentLogs: logs.slice(0, 6),
       pendingLogs: logs.filter((log) => log.status === "submitted"),
       activeContracts: contracts.filter((contract) => contract.status === "active"),
+      bills,
     };
   },
 
@@ -761,6 +767,7 @@ export const machineryService = {
         actor,
         status,
         calculatedCost,
+        { type: contract?.billingType, rate: contract?.rate },
       );
       memoryLogs = [stored, ...(memoryLogs ?? []).filter((item) => item.id !== stored.id)];
       return stored;
@@ -838,6 +845,12 @@ export const machineryService = {
 
   async approveLog(logId: string, actor: AppUser) {
     if (isSupabaseConfigured) {
+      const log = (await machineryRepository.listLogs(actor)).find((item) => item.id === logId);
+      if (!log) throw new Error("Machine log not found.");
+      if (log.status !== "submitted") throw new Error("Only submitted machine logs can be approved.");
+      if (!canApproveLog(actor, log)) {
+        throw new Error("You do not have permission to approve this machine log.");
+      }
       const updated = await machineryRepository.approveLog(logId, actor);
       memoryLogs = (memoryLogs ?? []).map((item) => item.id === logId ? updated : item);
       return updated;

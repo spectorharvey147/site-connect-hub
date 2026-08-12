@@ -190,11 +190,7 @@ export const materialsRepository = {
 
   async approveRequest(id: string, actor: AppUser) {
     const client = requireSupabase();
-    const { error } = await client.from("material_requests").update({
-      status: "approved",
-      approved_by: actor.id,
-      approved_at: new Date().toISOString(),
-    }).eq("id", id);
+    const { error } = await client.rpc("approve_material_request", { target_request_id: id });
     if (error) throw new Error(error.message);
     return (await this.listRequests(actor)).find((row) => row.id === id)!;
   },
@@ -250,31 +246,8 @@ export const materialsRepository = {
 
   async verifyReceipt(id: string, actor: AppUser) {
     const client = requireSupabase();
-    const receipt = (await this.listReceipts(actor)).find((row) => row.id === id);
-    if (!receipt) throw new Error("Material receipt not found.");
-    const { error } = await client.from("material_receipts").update({
-      status: "verified",
-      verified_by: actor.id,
-      verified_at: new Date().toISOString(),
-    }).eq("id", id);
+    const { error } = await client.rpc("verify_material_receipt", { target_receipt_id: id });
     if (error) throw new Error(error.message);
-    for (const item of receipt.items) {
-      const balance = await this.stockBalance(actor, receipt.projectId, item.materialId);
-      await client.from("material_stock_ledger").insert({
-        organization_id: actor.organizationId,
-        project_id: receipt.projectId,
-        department_id: actor.departmentId ?? null,
-        material_id: item.materialId,
-        transaction_date: receipt.receiptDate,
-        transaction_type: item.condition === "damaged" ? "damage" : "receipt",
-        reference_id: id,
-        quantity_in: item.condition === "damaged" ? 0 : item.quantityReceived,
-        quantity_out: item.condition === "damaged" ? item.quantityReceived : 0,
-        balance_quantity:
-          balance + (item.condition === "damaged" ? -item.quantityReceived : item.quantityReceived),
-        created_by: actor.id,
-      });
-    }
     return (await this.listReceipts(actor)).find((row) => row.id === id)!;
   },
 
@@ -287,6 +260,7 @@ export const materialsRepository = {
       .eq("material_id", materialId)
       .order("transaction_date", { ascending: false })
       .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(1)
       .maybeSingle();
     if (error) throw new Error(error.message);

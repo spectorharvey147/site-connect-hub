@@ -1,4 +1,5 @@
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
+import { getEdgeFunctionErrorMessage } from "@/services/edgeFunctionError";
 import type { AppUser } from "@/types/auth";
 
 export const EMAIL_NOTIFICATION_EVENTS = [
@@ -8,7 +9,7 @@ export const EMAIL_NOTIFICATION_EVENTS = [
   ["claim_changes_requested", "Claim changes requested"],
   ["claim_admin_verification_required", "Admin/HR verification required"],
   ["claim_manager_approval_required", "Manager approval required"],
-  ["claim_final_approval_required", "Final approval required"],
+  ["claim_final_approval_required", "Master Exception Approval required"],
   ["claim_accounts_verification_required", "Accounts verification required"],
   ["claim_accounts_returned", "Claim returned by Accounts"],
   ["claim_voucher_ready", "Voucher generation required"],
@@ -27,6 +28,9 @@ export const EMAIL_NOTIFICATION_EVENTS = [
   ["voucher_generated", "Voucher generated"],
   ["payment_processed", "Payment processed"],
   ["message_mention", "Message mention"],
+  ["user_created", "User account created"],
+  ["claim_query_raised", "Claim query raised"],
+  ["claim_query_responded", "Claim query responded"],
 ] as const;
 
 export interface SmtpStatus {
@@ -67,10 +71,24 @@ const demoStatus = describeSmtpConfiguration({});
 
 async function invoke(body: Record<string, unknown>) {
   if (!supabase) throw new Error("Supabase is not configured.");
+  let { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  const expiresSoon =
+    sessionData.session?.expires_at &&
+    sessionData.session.expires_at * 1000 < Date.now() + 60_000;
+  if (!sessionError && expiresSoon) {
+    const refreshed = await supabase.auth.refreshSession();
+    sessionData = refreshed.data;
+    sessionError = refreshed.error;
+  }
+  const accessToken = sessionData.session?.access_token;
+  if (sessionError || !accessToken) {
+    throw new Error("Your session has expired. Sign in again to manage email settings.");
+  }
   const { data, error } = await supabase.functions.invoke("send-notification", {
     body,
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(await getEdgeFunctionErrorMessage(error, "Email service request failed."));
   if (data?.error) throw new Error(String(data.error));
   return data;
 }

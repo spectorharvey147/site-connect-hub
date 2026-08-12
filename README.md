@@ -39,7 +39,7 @@ The application does not provide demo or fallback authentication. Login remains 
 
 - Claims landing page, history, detail and reports
 - Multi-step claim submission with items, attachments, draft and submit actions
-- Admin verification, manager approval and final approval queues
+- Admin verification, manager approval, HOD approval and Master Exception Approval queues
 - Approve, reduce, reject and request-change decisions with timeline entries
 - Payment voucher generation, PDF voucher export and mark-paid flow
 - User balance, employee ledger statement, transaction register and CSV exports
@@ -179,9 +179,14 @@ The initial migration enables RLS on core tables and seeds the five required rol
 - Manager
 - HOD / Department Head
 - Admin / HR
-- Super Admin / Finance Head
+- Super Admin
 - Accounts Officer
 
 ## Next Phase
 
 All specified module phases are now scaffolded with working demo-mode flows. The next step is review, QA hardening and production Supabase integration.
+# Production hardening and Communication Center
+
+Production requires Supabase and must set `VITE_RUNTIME_MODE=production`; operational demo/local data is never selected in that mode. Demo fixtures are available only in test mode or when explicitly enabled in development.
+
+The independent Communication Center provides approval-first DPR-only WhatsApp delivery through a server-side worker and separate Baileys gateway. Attendance WhatsApp integration is intentionally not implemented. See [Communication Center operations](docs/COMMUNICATION_CENTER_OPERATIONS.md) and [permission matrix](docs/PERMISSION_MATRIX.md) before deployment.

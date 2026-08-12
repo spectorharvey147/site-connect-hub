@@ -14,6 +14,7 @@ import { StatCard } from "@/components/shared/StatCard";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
+import { useSelectableProjects } from "@/hooks/useSelectableProjects";
 import { casualLabourService } from "@/services/casualLabourService";
 import type {
   CasualLabourAttendance,
@@ -23,6 +24,8 @@ import { formatCurrency } from "@/utils/format";
 
 export function CasualLabourLandingPage() {
   const { user } = useAuth();
+  const { projects } = useSelectableProjects(user);
+  const [projectId, setProjectId] = useState("");
   const [summary, setSummary] = useState<CasualLabourSummary | null>(null);
   const [recent, setRecent] = useState<CasualLabourAttendance[]>([]);
   const [pending, setPending] = useState<CasualLabourAttendance[]>([]);
@@ -31,12 +34,12 @@ export function CasualLabourLandingPage() {
     if (!user) {
       return;
     }
-    void casualLabourService.getDashboard(user).then((dashboard) => {
+    void casualLabourService.getDashboard(user, projectId || undefined).then((dashboard) => {
       setSummary(dashboard.summary);
       setRecent(dashboard.recent);
       setPending(dashboard.pending);
     });
-  }, [user]);
+  }, [projectId, user]);
 
   if (!user || !summary) {
     return null;
@@ -59,6 +62,7 @@ export function CasualLabourLandingPage() {
           </Link>
         }
       />
+      <div className="mb-5 max-w-md"><label className="text-sm font-semibold">Project view<select className="mt-1 h-11 w-full rounded-md border border-surface-border bg-white px-3" value={projectId} onChange={(e)=>setProjectId(e.target.value)}><option value="">All assigned projects</option>{projects.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard

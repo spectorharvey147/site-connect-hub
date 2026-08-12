@@ -28,6 +28,7 @@ export type ClaimStatus =
   | "rejected"
   | "changes_requested"
   | "cancelled"
+  | "on_hold"
   | "withdrawn";
 
 export type ExpenseBillType = "with_bill" | "without_bill";
@@ -177,6 +178,7 @@ export interface DetailedClaimVoucher extends PaymentVoucher {
   projectName?: string;
   customerName?: string;
   managerName?: string;
+  adminVerifierName?: string;
   hodName?: string;
   finalApproverName?: string;
   accountsVerifierName?: string;
@@ -380,6 +382,7 @@ export type ClaimAction =
   | "submit"
   | "admin_review"
   | "manager_review"
+  | "hod_review"
   | "final_review"
   | "accounts_verify"
   | "generate_voucher"

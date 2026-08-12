@@ -114,6 +114,9 @@ async function mapProject(row: Row): Promise<ProjectMaster> {
     latitude: row.latitude == null ? undefined : numberValue(row.latitude),
     longitude: row.longitude == null ? undefined : numberValue(row.longitude),
     geofenceRadius: numberValue(row.geofence_radius),
+    attendanceEnabled: row.attendance_enabled === true,
+    attendanceConfigurationVerified: row.attendance_configuration_verified === true,
+    attendanceReady: row.status === "active" && row.deleted_at == null && row.attendance_enabled === true && row.attendance_configuration_verified === true && row.latitude != null && row.longitude != null && numberValue(row.geofence_radius) >= 10,
     startDate: text(row.start_date),
     endDate: text(row.end_date),
     projectBudget: numberValue(row.project_budget),
@@ -142,6 +145,9 @@ function validateProject(input: ProjectInput) {
   if (input.projectBudget < 0 || input.geofenceRadius < 0) {
     throw new Error("Budget and geofence radius cannot be negative.");
   }
+  if (input.attendanceEnabled && (input.latitude == null || input.longitude == null || input.geofenceRadius < 10)) {
+    throw new Error("Attendance requires valid coordinates and a geofence radius of at least 10 metres.");
+  }
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new Error("Project end date must be after start date.");
   }
@@ -162,6 +168,10 @@ function projectPayload(input: ProjectInput, actor: AppUser) {
     latitude: input.latitude ?? null,
     longitude: input.longitude ?? null,
     geofence_radius: input.geofenceRadius,
+    attendance_enabled: input.attendanceEnabled,
+    attendance_configuration_verified: input.attendanceConfigurationVerified,
+    attendance_verified_by: input.attendanceConfigurationVerified ? actor.id : null,
+    attendance_verified_at: input.attendanceConfigurationVerified ? new Date().toISOString() : null,
     start_date: input.startDate || null,
     end_date: input.endDate || null,
     project_budget: input.projectBudget,
@@ -188,6 +198,9 @@ export const projectService = {
           name: project.name,
           location: project.location,
           geofenceRadius: 250,
+          attendanceEnabled: false,
+          attendanceConfigurationVerified: false,
+          attendanceReady: false,
           projectBudget: 0,
           workManagerMappings: [],
           status: "active",

@@ -42,6 +42,7 @@ export interface MachineAsset {
 
 export interface MachineryContract {
   id: string;
+  projectId?: string;
   contractNumber: string;
   vendorId: string;
   vendorName: string;
@@ -174,4 +175,20 @@ export interface MachinerySummary {
   utilizationHours: number;
   breakdownCount: number;
   pendingApproval: number;
+  approvedBillValue?: number;
+}
+
+export interface MachineryUsageBill {
+  id: string;
+  projectId?: string;
+  machineLogId: string;
+  periodFrom: string;
+  machineNumber: string;
+  vendorName: string;
+  usageHours: number;
+  tripCount: number;
+  baseAmount: number;
+  breakdownDeduction: number;
+  netAmount: number;
+  status: string;
 }

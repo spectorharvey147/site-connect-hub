@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { sendGmailMessage } from "../_shared/gmail-smtp.ts";
+import { buildEmailContent } from "../_shared/email-templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +35,9 @@ Deno.serve(async (request) => {
   }
 
   const input = await request.json();
+  const { data: appSettings } = await admin.from("app_settings").select("notifications").eq("id", "default").maybeSingle();
+  const configuredBaseUrl = String((appSettings?.notifications as { approvalBaseUrl?: string } | null)?.approvalBaseUrl ?? "").trim().replace(/\/$/, "");
+  const applicationUrl = configuredBaseUrl || String(request.headers.get("origin") ?? "").replace(/\/$/, "");
   if (input.action === "resend_invite") {
     const userId = String(input.userId ?? "").trim();
     const { data: target } = await admin
@@ -48,7 +53,7 @@ Deno.serve(async (request) => {
       return response(400, { error: "Only invited users can receive a new setup link." });
     }
     const { error: inviteError } = await admin.auth.resetPasswordForEmail(target.email, {
-      redirectTo: `${request.headers.get("origin") ?? ""}/reset-password`,
+      redirectTo: `${applicationUrl}/reset-password`,
     });
     if (inviteError) return response(400, { error: inviteError.message });
     return response(200, { message: "Invitation setup link resent." });
@@ -122,9 +127,33 @@ Deno.serve(async (request) => {
     }
     if (!input.password) {
       const { error: inviteError } = await admin.auth.resetPasswordForEmail(email, {
-        redirectTo: `${request.headers.get("origin") ?? ""}/reset-password`,
+        redirectTo: `${applicationUrl}/reset-password`,
       });
       if (inviteError) throw inviteError;
+    }
+    if (input.password) try {
+      const title = "Your Site Connect account is ready";
+      const setupUrl = `${applicationUrl}/login`;
+      const content = buildEmailContent(
+        "user_created",
+        `${input.firstName} ${input.lastName}`.trim(),
+        title,
+        `Your account ${email} has been created. Open Site Connect: ${setupUrl}`,
+      );
+      const messageId = await sendGmailMessage({ to: email, subject: title, ...content });
+      const { data: notification } = await admin.from("notifications").insert({
+        user_id: authUserId, type: "user_created", title,
+        message: `Account created. Application: ${setupUrl}`,
+        related_id: authUserId, related_type: "user_profile",
+      }).select("id").single();
+      await admin.from("notification_deliveries").insert({
+        organization_id: callerProfile.organization_id, notification_id: notification?.id ?? null,
+        recipient_user_id: authUserId, channel: "email", recipient_address: email,
+        status: "sent", provider_message_id: messageId, attempts: 1,
+      });
+    } catch (emailError) {
+      await admin.from("audit_logs").insert({ user_id: caller.user.id, action: "users.welcome_email_failed", entity_type: "user_profile", entity_id: authUserId,
+        new_values: { email, error: emailError instanceof Error ? emailError.message : "Welcome email failed" } });
     }
     return response(201, { id: authUserId });
   } catch (error) {

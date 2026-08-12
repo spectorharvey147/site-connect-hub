@@ -1,4 +1,4 @@
-import { Building2, ImageUp, Save, Trash2 } from "lucide-react";
+import { Building2, Download, FileJson, ImageUp, Save, Trash2, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/hooks/useAuth";
 import { organizationService } from "@/services/organizationService";
+import { organizationDataTransferService, type OrganizationImportPackage } from "@/services/organizationDataTransferService";
 import type { Organization, OrganizationInput } from "@/types/organization";
 
 function toInput(organization: Organization): OrganizationInput {
@@ -38,6 +39,7 @@ export function OrganizationSettingsPage() {
   const [form, setForm] = useState<OrganizationInput | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     void organizationService.getCurrentOrganization().then((result) => {
@@ -199,6 +201,20 @@ export function OrganizationSettingsPage() {
           >
             Save Organization
           </Button>
+        </CardContent>
+      </Card>
+      <Card className="mt-6">
+        <CardHeader><CardTitle className="flex items-center gap-2"><FileJson className="h-4 w-4 text-brand-blue" />Organization Import / Export</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-text-secondary">Download the populated template to see every relationship key for departments, users, managers, HODs, projects, and project assignments. Import validates and creates records in dependency order.</p>
+          <div className="flex flex-wrap gap-3">
+            <Button type="button" variant="secondary" leftIcon={<Download className="h-4 w-4" />} onClick={() => organizationDataTransferService.downloadSample()}>Download Sample Template</Button>
+            <Button type="button" variant="secondary" leftIcon={<Download className="h-4 w-4" />} onClick={() => void organizationDataTransferService.exportCurrent(user).catch((error) => toast.error(error instanceof Error ? error.message : "Export failed."))}>Export Current Organisation</Button>
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-brand-blue px-4 py-2 text-sm font-semibold text-white">
+              <Upload className="h-4 w-4" />{importing ? "Importing..." : "Import JSON Package"}
+              <input className="sr-only" type="file" accept="application/json,.json" disabled={importing} onChange={(event) => { const file=event.target.files?.[0]; if(!file)return; setImporting(true); void file.text().then((text)=>organizationDataTransferService.importPackage(JSON.parse(text) as OrganizationImportPackage,user)).then((result)=>toast.success(`Imported ${result.departments} departments, ${result.projects} projects and ${result.usersCreated} users (${result.usersSkipped} skipped).`)).catch((error)=>toast.error(error instanceof Error?error.message:"Import failed.")).finally(()=>setImporting(false)); }} />
+            </label>
+          </div>
         </CardContent>
       </Card>
     </>

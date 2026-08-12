@@ -118,7 +118,7 @@ describe("claimsService workflow", () => {
     const claim = await claimsService.submitClaim(makeClaimInput(), siteUser);
     await claimsService.reviewClaim({ claimId: claim.id, stage: "admin_verification", decision: "approved", remarks: "" }, admin);
     await claimsService.reviewClaim({ claimId: claim.id, stage: "manager_approval", decision: "approved", remarks: "" }, manager);
-    const approved = await claimsService.reviewClaim({ claimId: claim.id, stage: "final_approval", decision: "approved", remarks: "" }, hod);
+    const approved = await claimsService.reviewClaim({ claimId: claim.id, stage: "hod_approval", decision: "approved", remarks: "" }, hod);
     expect(approved.status).toBe("accounts_verification_pending");
 
     const accounts = userByEmail("accounts@siteconnect.local");
@@ -143,7 +143,7 @@ describe("claimsService workflow", () => {
     const claim = await claimsService.submitClaim(input, siteUser);
     await claimsService.reviewClaim({ claimId: claim.id, stage: "admin_verification", decision: "approved", remarks: "" }, admin);
     await claimsService.reviewClaim({ claimId: claim.id, stage: "manager_approval", decision: "approved", remarks: "" }, manager);
-    const hodApproved = await claimsService.reviewClaim({ claimId: claim.id, stage: "final_approval", decision: "approved", remarks: "" }, hod);
+    const hodApproved = await claimsService.reviewClaim({ claimId: claim.id, stage: "hod_approval", decision: "approved", remarks: "" }, hod);
     expect(hodApproved.status).toBe("final_approval_pending");
     const final = await claimsService.reviewClaim({ claimId: claim.id, stage: "final_approval", decision: "approved", remarks: "" }, superAdmin);
     expect(final.status).toBe("accounts_verification_pending");

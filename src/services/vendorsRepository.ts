@@ -154,9 +154,17 @@ export const vendorsRepository = {
     }).select("id").single();
     if (error) throw new Error(error.message);
     const billId = String(data.id);
-    if (items.length) {
+    const billItems = items.length ? items : [{
+      id: `manual:${billId}`,
+      description: `Manual invoice ${input.invoiceNumber}`,
+      quantity: 1,
+      unit: "invoice",
+      rate: input.baseAmount,
+      amount: input.baseAmount,
+    }];
+    if (billItems.length) {
       const { error: itemError } = await client.from("vendor_bill_items").insert(
-        items.map((item) => ({
+        billItems.map((item) => ({
           organization_id: actor.organizationId,
           project_id: input.projectId,
           department_id: actor.departmentId ?? null,
@@ -205,6 +213,16 @@ export const vendorsRepository = {
     const { error } = await client.from("vendor_bills").update(patch).eq("id", id);
     if (error) throw new Error(error.message);
     const bill = (await this.listBills(actor)).find((row) => row.id === id)!;
+    if (status === "verified") {
+      const balance = await this.vendorBalance(actor, bill.vendorId);
+      await this.addLedger(actor, bill, {
+        type: "bill_verified",
+        description: `Bill ${bill.billNumber} verified`,
+        debit: 0,
+        credit: 0,
+        balanceAfter: balance,
+      });
+    }
     if (status === "approved") {
       const balance = await this.vendorBalance(actor, bill.vendorId);
       await this.addLedger(actor, bill, {
@@ -269,7 +287,17 @@ export const vendorsRepository = {
     }).select("id").single();
     if (error) throw new Error(error.message);
     await client.from("vendor_bills").update({ status: "voucher_generated" }).eq("id", bill.id);
-    return (await this.listVouchers(actor)).find((row) => row.id === String(data.id))!;
+    const voucher = (await this.listVouchers(actor)).find((row) => row.id === String(data.id))!;
+    const balance = await this.vendorBalance(actor, bill.vendorId);
+    await this.addLedger(actor, bill, {
+      voucherId: voucher.id,
+      type: "voucher_generated",
+      description: `Voucher ${voucher.voucherNumber} generated`,
+      debit: 0,
+      credit: 0,
+      balanceAfter: balance,
+    });
+    return voucher;
   },
 
   async listPayments(actor: AppUser) {
@@ -311,6 +339,7 @@ export const vendorsRepository = {
       .filter((row) => row.vendorBillId === bill.id && row.status !== "void")
       .reduce((sum, row) => sum + row.amount, 0);
     const remaining = Math.max(0, bill.totalAmount - existing);
+    if (!reference.trim()) throw new Error("Payment reference is required.");
     if (amount <= 0 || amount > remaining) throw new Error("Payment amount exceeds outstanding balance.");
     const { data, error } = await client.from("vendor_payments").insert({
       vendor_id: bill.vendorId,

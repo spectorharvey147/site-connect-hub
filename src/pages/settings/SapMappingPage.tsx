@@ -24,6 +24,7 @@ export function SapMappingPage() {
   useEffect(() => {void Promise.all([load(),sapExportService.listMappingOptions().then(setOptions)]).catch((error) => toast.error(error.message));}, [load]);
   if (!user) return null;
   const actor=user;
+  const labelFor=(values:{id:string;label:string}[],id?:string)=>id?values.find(option=>option.id===id)?.label??"Unknown mapping":"Any";
 
   async function save() {
     try {
@@ -45,6 +46,6 @@ export function SapMappingPage() {
       <label className="text-sm font-semibold">SAP grouping<select className="mt-1 h-11 w-full rounded-md border border-surface-border bg-white px-3" value={form.postingGroup} onChange={(event) => setForm((current) => ({...current,postingGroup:event.target.value as "separate"|"other"}))}><option value="separate">Separate category line</option><option value="other">Combine into Other Expenses</option></select></label>
       <div className="flex items-end"><Button onClick={() => void save()}>Save Mapping</Button></div>
     </CardContent></Card>
-    <Card><CardContent><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr>{["Expense Category","Grouping","Cost Code","Customer","Department","GL","Cost Center","Profit Center","Company","Active"].map((heading) => <th className="p-3 text-left" key={heading}>{heading}</th>)}</tr></thead><tbody>{rows.map((row) => <tr className="border-t" key={row.id}><td>{row.expenseCategoryId??"Any"}</td><td>{row.postingGroup==="separate"?"Separate":"Other Expenses"}</td><td>{row.projectCostCodeId??"Any"}</td><td>{row.customerId??"Any"}</td><td>{row.departmentId??"Any"}</td><td>{row.glCode}</td><td>{row.costCenter??"-"}</td><td>{row.profitCenter??"-"}</td><td>{row.companyCode}</td><td>{row.active?"Yes":"No"}</td></tr>)}</tbody></table></div></CardContent></Card>
+    <Card><CardContent><div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr>{["Expense Category","Grouping","Cost Code","Customer","Department","GL","Cost Center","Profit Center","Company","Active"].map((heading) => <th className="p-3 text-left" key={heading}>{heading}</th>)}</tr></thead><tbody>{rows.map((row) => <tr className="border-t" key={row.id}><td>{labelFor(options.expenseCategories,row.expenseCategoryId)}</td><td>{row.postingGroup==="separate"?"Separate":"Other Expenses"}</td><td>{labelFor(options.costCodes,row.projectCostCodeId)}</td><td>{labelFor(options.customers,row.customerId)}</td><td>{labelFor(options.departments,row.departmentId)}</td><td>{row.glCode}</td><td>{row.costCenter??"-"}</td><td>{row.profitCenter??"-"}</td><td>{row.companyCode}</td><td>{row.active?"Yes":"No"}</td></tr>)}</tbody></table></div></CardContent></Card>
   </>;
 }

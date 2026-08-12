@@ -13,7 +13,6 @@ import { Textarea } from "@/components/ui/Textarea";
 import {
   LABOUR_ATTENDANCE_STATUS_LABELS,
   LABOUR_CATEGORY_LABELS,
-  LABOUR_VENDORS,
 } from "@/constants/casualLabour";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectableProjects } from "@/hooks/useSelectableProjects";
@@ -29,6 +28,7 @@ import type {
   LabourAttendanceRow,
   LabourAttendanceStatus,
   LabourRecordStatus,
+  LabourVendor,
 } from "@/types/casualLabour";
 import { formatCurrency } from "@/utils/format";
 
@@ -51,7 +51,7 @@ export function LabourAttendancePage() {
   );
   const [form, setForm] = useState<LabourAttendanceInput>({
     projectId: "",
-    vendorId: LABOUR_VENDORS[0]?.id ?? "",
+    vendorId: "",
     date: today(),
     rows: [],
     allocation: {
@@ -64,11 +64,14 @@ export function LabourAttendancePage() {
   });
   const [saving, setSaving] = useState<LabourRecordStatus | null>(null);
   const [contracts, setContracts] = useState<VendorContract[]>([]);
+  const [vendors, setVendors] = useState<LabourVendor[]>(casualLabourService.listVendors());
 
   useEffect(() => {
     if (user) {
-      void casualLabourService.loadWorkers(user).then(setWorkers);
-      void vendorContractService.activeLabourContracts(user).then(setContracts);
+      void Promise.all([casualLabourService.loadWorkers(user), casualLabourService.loadVendors(), vendorContractService.activeLabourContracts(user)]).then(([workerRows,vendorRows,contractRows]) => {
+        setWorkers(workerRows); setVendors(vendorRows); setContracts(contractRows);
+        setForm((current) => ({...current,vendorId: vendorRows.some((v)=>v.id===current.vendorId)?current.vendorId:vendorRows[0]?.id??""}));
+      });
     }
   }, [user]);
 
@@ -93,7 +96,9 @@ export function LabourAttendancePage() {
   );
 
   const vendorWorkers = useMemo(
-    () => workers.filter((worker) => worker.vendorId === form.vendorId),
+    () => workers.filter(
+      (worker) => worker.vendorId === form.vendorId && worker.status === "active",
+    ),
     [form.vendorId, workers],
   );
   const costSummary = useMemo(
@@ -241,7 +246,7 @@ export function LabourAttendancePage() {
                 >
                   {Array.from(
                     new Map([
-                      ...LABOUR_VENDORS.map((vendor) => [vendor.id, vendor.name] as const),
+                      ...vendors.map((vendor) => [vendor.id, vendor.name] as const),
                       ...contracts.map((contract) => [contract.vendorId, contract.vendorName] as const),
                     ]),
                   ).map(([id, name]) => (

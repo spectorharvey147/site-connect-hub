@@ -43,6 +43,9 @@ describe("vendor contracts", () => {
       vendorId: "vendor-buildmart",
       projectId: "project-metro",
       contractCode: "VC-TEST-01",
+      contractTitle: "Metro site commercial contract",
+      departmentId: "department-projects",
+      costCodeId: "cost-code-civil",
       startDate: "2026-06-01",
       endDate: "2026-12-31",
       status: "active" as const,
@@ -64,6 +67,7 @@ describe("vendor contracts", () => {
       contractCode: "VC-TEST-02",
       contractType: "machinery",
       machineType: "excavator",
+      machineNumber: "EXC-TEST-01",
       billingType: "hourly",
       rate: 2200,
       minimumHours: 8,
@@ -78,6 +82,7 @@ describe("vendor contracts", () => {
     const labour = await vendorContractService.save({
       contractType: "labour", vendorId: "vendor-buildmart", projectId: "project-metro",
       contractCode: "LAB-RATE", startDate: "2026-06-01", endDate: "2026-12-31",
+      contractTitle: "Labour rate contract", departmentId: "department-projects", costCodeId: "cost-code-civil",
       status: "active", paymentTerms: "30 days", gstApplicable: true,
       tdsApplicable: true, remarks: "", maleLabourRate: 900, femaleLabourRate: 850,
       supervisorRate: 1200, overtimeRate: 175,
@@ -97,6 +102,7 @@ describe("vendor contracts", () => {
     const machinery = await vendorContractService.save({
       contractType: "machinery", vendorId: asset.vendorId ?? "vendor-buildmart",
       projectId: asset.projectId ?? "project-metro", contractCode: "MCH-RATE",
+      contractTitle: "Excavator hire contract", departmentId: "department-projects", costCodeId: "cost-code-civil",
       startDate: "2026-06-01", endDate: "2026-12-31", status: "active",
       paymentTerms: "30 days", gstApplicable: true, tdsApplicable: true,
       remarks: "", machineNumber: asset.machineNumber, machineType: asset.machineType,
@@ -111,6 +117,36 @@ describe("vendor contracts", () => {
       remarks: "",
     }, site, "submitted");
     expect(log.calculatedCost).toBe(8000);
+  });
+
+  it("rejects incomplete active subtype contracts and invalid date ranges", async () => {
+    const admin = user("admin@siteconnect.local");
+    const base = {
+      vendorId: "vendor-buildmart", projectId: "project-metro",
+      departmentId: "department-projects", costCodeId: "cost-code-civil",
+      contractTitle: "Production contract", startDate: "2026-06-01",
+      endDate: "2026-12-31", status: "active" as const,
+      paymentTerms: "30 days", gstApplicable: true, tdsApplicable: true, remarks: "",
+    };
+    await expect(vendorContractService.save({ ...base, contractCode: "BAD-MAT", contractType: "material", rate: 0 }, admin))
+      .rejects.toThrow("Material specification is required");
+    await expect(vendorContractService.save({ ...base, contractCode: "BAD-DATE", contractType: "service", startDate: "2026-06-01", endDate: "2026-06-01" }, admin))
+      .rejects.toThrow("must be after");
+  });
+
+  it("creates complete material and service contracts", async () => {
+    const admin = user("admin@siteconnect.local");
+    const base = {
+      vendorId: "vendor-buildmart", projectId: "project-metro",
+      departmentId: "department-projects", costCodeId: "cost-code-civil",
+      contractTitle: "Production contract", startDate: "2026-06-01",
+      endDate: "2026-12-31", status: "active" as const,
+      paymentTerms: "30 days", gstApplicable: true, tdsApplicable: true, remarks: "",
+    };
+    const material = await vendorContractService.save({ ...base, contractCode: "MAT-001", contractType: "material", materialSpecification: "OPC 53 grade cement", rate: 430, rateUnit: "bag", minimumOrderQuantity: 500 }, admin);
+    const service = await vendorContractService.save({ ...base, contractCode: "SVC-001", contractType: "service", scopeOfWork: "Monthly safety inspection", serviceFrequency: "monthly", rate: 45000, rateUnit: "month" }, admin);
+    expect(material.materialSpecification).toBe("OPC 53 grade cement");
+    expect(service.scopeOfWork).toBe("Monthly safety inspection");
   });
 
   it("keeps production contract terms in normalized detail tables", () => {

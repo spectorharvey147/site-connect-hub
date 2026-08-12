@@ -675,6 +675,7 @@ export const attendanceService = {
     user: AppUser,
     location?: GeoLocationPoint,
     selectedProjectId?: string,
+    evidence?: { selfiePath?: string; capturedAt?: string; clientMutationId?: string },
   ) {
     if (shouldUseSupabaseAttendance()) {
       const existing = await this.getTodayAttendance(user);
@@ -691,6 +692,9 @@ export const attendanceService = {
         p_latitude: location?.latitude ?? null,
         p_longitude: location?.longitude ?? null,
         p_accuracy: location?.accuracy ?? null,
+        p_selfie_path: evidence?.selfiePath ?? null,
+        p_captured_at: evidence?.capturedAt ?? null,
+        p_client_mutation_id: evidence?.clientMutationId ?? null,
       });
       if (error) {
         throw new Error(error.message);
@@ -753,7 +757,7 @@ export const attendanceService = {
     return record;
   },
 
-  async checkOut(user: AppUser, location?: GeoLocationPoint) {
+  async checkOut(user: AppUser, location?: GeoLocationPoint, evidence?: { selfiePath?: string; capturedAt?: string; clientMutationId?: string }) {
     if (shouldUseSupabaseAttendance()) {
       const record = await this.getTodayAttendance(user);
       if (!record?.checkInTime) {
@@ -769,6 +773,9 @@ export const attendanceService = {
         p_latitude: location?.latitude ?? null,
         p_longitude: location?.longitude ?? null,
         p_accuracy: location?.accuracy ?? null,
+        p_selfie_path: evidence?.selfiePath ?? null,
+        p_captured_at: evidence?.capturedAt ?? null,
+        p_client_mutation_id: evidence?.clientMutationId ?? null,
       });
       if (error) {
         throw new Error(error.message);
@@ -993,9 +1000,11 @@ export const attendanceService = {
   },
 
   async getMonthlySummary(user: AppUser, month: string) {
+    const [year, monthNumber] = month.split("-").map(Number);
+    const lastDay = new Date(year, monthNumber, 0).getDate();
     const records = await this.listAttendance(user, {
       fromDate: `${month}-01`,
-      toDate: `${month}-31`,
+      toDate: `${month}-${String(lastDay).padStart(2, "0")}`,
     });
     return summarize(records);
   },

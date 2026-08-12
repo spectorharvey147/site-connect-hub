@@ -39,13 +39,13 @@ interface ApprovalMatrixRow {
 }
 
 const roleLabels: Record<ApprovalApproverRole, string> = {
-  admin: "Admin Verification",
+  admin: "Admin / HR Verification",
   manager: "Reporting Manager",
   hod: "Department HOD",
-  super_admin: "Super Admin / Finance Head",
-  accounts: "Accounts Processing",
+  super_admin: "Master Exception Approval",
+  accounts: "Accounts Officer",
   store_admin: "Store Admin",
-  finance_head: "Finance Head",
+  finance_head: "Master Exception Approval",
 };
 
 function assertCanManage(actor: AppUser) {
@@ -241,7 +241,9 @@ async function resolveRoleUser(
   explicitUserId?: string,
 ) {
   if (explicitUserId) {
-    return users.find((user) => user.id === explicitUserId);
+    const explicit = users.find((user) => user.id === explicitUserId && user.status === "active");
+    if (!explicit) throw new Error(`Configured ${roleLabels[role]} approver is unavailable.`);
+    return explicit;
   }
   if (role === "manager") {
     return users.find(
@@ -256,13 +258,13 @@ async function resolveRoleUser(
     );
   }
   if (role === "admin" || role === "store_admin") {
-    return firstActiveUserByRole(users, ["admin_hr", "super_admin"]);
+    return firstActiveUserByRole(users, ["admin_hr"]);
   }
   if (role === "super_admin" || role === "finance_head") {
     return firstActiveUserByRole(users, ["super_admin"]);
   }
   if (role === "accounts") {
-    return firstActiveUserByRole(users, ["accounts_officer", "super_admin"]);
+    return firstActiveUserByRole(users, ["accounts_officer"]);
   }
   return undefined;
 }
@@ -289,6 +291,9 @@ async function buildPath(
       input.workflowType,
     );
     const finalApprover = delegated?.user ?? approver;
+    if (!finalApprover) {
+      throw new Error(`No active ${roleLabels[level.role]} is configured for this workflow.`);
+    }
     steps.push({
       id: `${input.workflowType}-${index + 1}-${level.role}`,
       sequence: index + 1,

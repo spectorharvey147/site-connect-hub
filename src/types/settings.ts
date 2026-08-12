@@ -19,6 +19,7 @@ export interface WorkflowSettings {
 
 export interface NotificationSettings {
   emailEnabled: boolean;
+  approvalBaseUrl: string;
   emailEvents: Record<string, boolean>;
   pushEnabled: boolean;
   dailyDigestTime: string;

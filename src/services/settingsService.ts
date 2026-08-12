@@ -52,6 +52,7 @@ function defaultSettings(): AppSettings {
     },
     notifications: {
       emailEnabled: true,
+      approvalBaseUrl: "",
       emailEvents: Object.fromEntries([
         "claim_submitted",
         "claim_approved",

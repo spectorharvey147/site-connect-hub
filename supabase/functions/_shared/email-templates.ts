@@ -5,7 +5,7 @@ const EVENT_COPY: Record<string, { heading: string; action: string }> = {
   claim_changes_requested: { heading: "Claim changes requested", action: "Update and resubmit the claim from Site Connect." },
   claim_admin_verification_required: { heading: "Admin/HR verification required", action: "Verify the claim details, bills and policy compliance." },
   claim_manager_approval_required: { heading: "Manager approval required", action: "Review the claim and record your approval decision." },
-  claim_final_approval_required: { heading: "Final claim approval required", action: "Review the verified amount and complete final approval." },
+  claim_final_approval_required: { heading: "Master Exception Approval required", action: "Review the verified amount and complete Master Exception Approval." },
   claim_accounts_verification_required: { heading: "Accounts verification required", action: "Verify payable value, deductions and SAP requirement." },
   claim_accounts_returned: { heading: "Claim returned by Accounts", action: "Open the claim, review Accounts remarks and correct the submission." },
   claim_voucher_ready: { heading: "Claim ready for voucher", action: "Generate the single or combined payment voucher." },
@@ -24,6 +24,9 @@ const EVENT_COPY: Record<string, { heading: string; action: string }> = {
   voucher_generated: { heading: "Payment voucher generated", action: "Review the voucher before payment processing." },
   payment_processed: { heading: "Payment processed", action: "The payment and ledger balances have been updated." },
   message_mention: { heading: "You were mentioned", action: "Open the conversation to view and respond to the message." },
+  user_created: { heading: "Your Site Connect account is ready", action: "Use the secure application link in this email to sign in or set your password." },
+  claim_query_raised: { heading: "Claim query raised", action: "Open the claim, respond to the query, and add any requested attachment." },
+  claim_query_responded: { heading: "Claim query answered", action: "Review the response and resolve the query when complete." },
 };
 
 function escapeHtml(value: string) {
@@ -45,6 +48,10 @@ export function buildEmailContent(
     action: "Open Site Connect to review this update.",
   };
   const detail = message?.trim() || "A workflow update is available.";
+  const detailHtml = escapeHtml(detail).replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" style="color:#0369a1;font-weight:600">Open secure link</a>',
+  );
   return {
     text: `${template.heading}\n\nHello ${name},\n\n${detail}\n\n${template.action}\n\nThis automated message was sent by Site Connect.`,
     html: `<div style="background:#f1f5f9;padding:24px;font-family:Arial,sans-serif;color:#0f172a">
@@ -55,7 +62,7 @@ export function buildEmailContent(
         </div>
         <div style="padding:24px">
           <p>Hello ${escapeHtml(name)},</p>
-          <p style="line-height:1.6">${escapeHtml(detail)}</p>
+          <p style="line-height:1.6">${detailHtml}</p>
           <div style="margin:20px 0;padding:14px 16px;background:#f0f9ff;border-left:4px solid #0284c7">
             ${escapeHtml(template.action)}
           </div>

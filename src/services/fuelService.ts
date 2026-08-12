@@ -292,11 +292,11 @@ function nextIssueNumber(issues: FuelIssue[]) {
 }
 
 function canUseFuel(user: AppUser) {
-  return ["site_staff", "manager", "admin_hr", "super_admin"].includes(user.role);
+  return ["site_staff", "manager", "hod", "admin_hr", "super_admin"].includes(user.role);
 }
 
 function canApproveFuel(user: AppUser, projectId: string) {
-  if (["admin_hr", "super_admin"].includes(user.role)) {
+  if (["hod", "admin_hr", "super_admin"].includes(user.role)) {
     return true;
   }
   return user.role === "manager" && user.projectIds.includes(projectId);
@@ -422,13 +422,13 @@ function getAverageRate(projectId: string, fuelType: FuelType) {
   );
 }
 
-function summarize(user: AppUser): FuelSummary {
+function summarize(user: AppUser, projectId?: string): FuelSummary {
   const month = today().slice(0, 7);
   const receipts = readReceipts().filter((receipt) =>
-    canViewProject(user, receipt.projectId),
+    canViewProject(user, receipt.projectId) && (!projectId || receipt.projectId === projectId),
   );
-  const issues = readIssues().filter((issue) => canViewProject(user, issue.projectId));
-  const dieselStock = getStockOnDate("project-metro", "diesel", today());
+  const issues = readIssues().filter((issue) => canViewProject(user, issue.projectId) && (!projectId || issue.projectId === projectId));
+  const dieselStock = receipts.filter((r) => r.fuelType === "diesel" && isFinalStockRecord(r.status)).reduce((sum,r)=>sum+r.quantity,0) - issues.filter((i)=>i.fuelType === "diesel" && isFinalStockRecord(i.status)).reduce((sum,i)=>sum+i.totalIssued,0);
   return {
     stockOnHand: dieselStock,
     receivedThisMonth: receipts
@@ -459,11 +459,11 @@ function summarize(user: AppUser): FuelSummary {
   };
 }
 
-function buildDailySummary(user: AppUser): DailyFuelSummary[] {
+function buildDailySummary(user: AppUser, projectId?: string): DailyFuelSummary[] {
   const receipts = readReceipts().filter((receipt) =>
-    canViewProject(user, receipt.projectId),
+    canViewProject(user, receipt.projectId) && (!projectId || receipt.projectId === projectId),
   );
-  const issues = readIssues().filter((issue) => canViewProject(user, issue.projectId));
+  const issues = readIssues().filter((issue) => canViewProject(user, issue.projectId) && (!projectId || issue.projectId === projectId));
   const dates = Array.from(
     new Set([
       ...receipts.map((receipt) => receipt.date),
@@ -496,7 +496,7 @@ function buildDailySummary(user: AppUser): DailyFuelSummary[] {
           isFinalStockRecord(issue.status),
       )
       .reduce((total, issue) => total + issue.totalIssued, 0);
-    const opening = getStockBeforeDate("project-metro", "diesel", date);
+    const opening = receipts.filter((r)=>r.date<date&&r.fuelType==="diesel"&&isFinalStockRecord(r.status)).reduce((sum,r)=>sum+r.quantity,0)-issues.filter((i)=>i.date<date&&i.fuelType==="diesel"&&isFinalStockRecord(i.status)).reduce((sum,i)=>sum+i.totalIssued,0);
     return {
       date,
       opening,
@@ -508,9 +508,9 @@ function buildDailySummary(user: AppUser): DailyFuelSummary[] {
   });
 }
 
-function buildMachineConsumption(user: AppUser): MachineFuelConsumption[] {
+function buildMachineConsumption(user: AppUser, projectId?: string): MachineFuelConsumption[] {
   const issueRows = readIssues()
-    .filter((issue) => canViewProject(user, issue.projectId) && isFinalStockRecord(issue.status))
+    .filter((issue) => canViewProject(user, issue.projectId) && (!projectId || issue.projectId === projectId) && isFinalStockRecord(issue.status))
     .flatMap((issue) =>
       issue.rows.map((row) => ({
         ...row,
@@ -538,10 +538,10 @@ function buildMachineConsumption(user: AppUser): MachineFuelConsumption[] {
   );
 }
 
-function buildVendorTracking(user: AppUser): VendorFuelTracking[] {
+function buildVendorTracking(user: AppUser, projectId?: string): VendorFuelTracking[] {
   const grouped = new Map<string, VendorFuelTracking>();
   readReceipts()
-    .filter((receipt) => canViewProject(user, receipt.projectId) && isFinalStockRecord(receipt.status))
+    .filter((receipt) => canViewProject(user, receipt.projectId) && (!projectId || receipt.projectId === projectId) && isFinalStockRecord(receipt.status))
     .forEach((receipt) => {
       const key = `${receipt.vendorId}:${receipt.fuelType}`;
       const current = grouped.get(key) ?? {
@@ -659,16 +659,17 @@ export const fuelService = {
     );
   },
 
-  async getDashboard(user: AppUser): Promise<FuelDashboard> {
-    const receipts = await this.listReceipts(user);
-    const issues = await this.listIssues(user);
+  async getDashboard(user: AppUser, projectId?: string): Promise<FuelDashboard> {
+    const filters = projectId ? { projectId } : undefined;
+    const receipts = await this.listReceipts(user, filters);
+    const issues = await this.listIssues(user, filters);
     return {
-      summary: summarize(user),
+      summary: summarize(user, projectId),
       recentReceipts: receipts.slice(0, 6),
       recentIssues: issues.slice(0, 6),
-      dailySummary: buildDailySummary(user),
-      machineConsumption: buildMachineConsumption(user),
-      vendorTracking: buildVendorTracking(user),
+      dailySummary: buildDailySummary(user, projectId),
+      machineConsumption: buildMachineConsumption(user, projectId),
+      vendorTracking: buildVendorTracking(user, projectId),
     };
   },
 
@@ -813,6 +814,12 @@ export const fuelService = {
 
   async approveReceipt(receiptId: string, actor: AppUser) {
     if (isSupabaseConfigured) {
+      const receipt = (await fuelRepository.listReceipts(actor)).find((item) => item.id === receiptId);
+      if (!receipt) throw new Error("Fuel receipt not found.");
+      if (receipt.status !== "submitted") throw new Error("Only submitted fuel receipts can be approved.");
+      if (!canApproveFuel(actor, receipt.projectId)) {
+        throw new Error("You do not have permission to approve this fuel receipt.");
+      }
       const updated = await fuelRepository.approveReceipt(receiptId, actor);
       memoryReceipts = (memoryReceipts ?? []).map((item) =>
         item.id === receiptId ? updated : item,
@@ -842,6 +849,12 @@ export const fuelService = {
 
   async approveIssue(issueId: string, actor: AppUser) {
     if (isSupabaseConfigured) {
+      const issue = (await fuelRepository.listIssues(actor)).find((item) => item.id === issueId);
+      if (!issue) throw new Error("Fuel issue not found.");
+      if (issue.status !== "submitted") throw new Error("Only submitted fuel issues can be approved.");
+      if (!canApproveFuel(actor, issue.projectId)) {
+        throw new Error("You do not have permission to approve this fuel issue.");
+      }
       const updated = await fuelRepository.approveIssue(issueId, actor);
       memoryIssues = (memoryIssues ?? []).map((item) =>
         item.id === issueId ? updated : item,
@@ -870,6 +883,9 @@ export const fuelService = {
   },
 
   async createDeposit(input: FuelDepositInput, actor: AppUser) {
+    if (!["manager", "hod", "accounts_officer", "admin_hr", "super_admin"].includes(actor.role)) {
+      throw new Error("You do not have permission to create fuel deposits.");
+    }
     if (!isSupabaseConfigured) {
       throw new Error("Fuel deposits require Supabase.");
     }

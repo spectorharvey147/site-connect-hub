@@ -10,6 +10,15 @@ declare
   table_name text;
 begin
   foreach table_name in array array[
+    'communication_delivery_attempts',
+    'communication_gateway_logs',
+    'communication_outbox',
+    'communication_project_mappings',
+    'communication_event_rules',
+    'communication_templates',
+    'communication_groups',
+    'communication_gateways',
+    'communication_settings',
     'claim_report_snapshots',
     'claim_email_action_tokens',
     'employee_ledger_entries',
@@ -46,6 +55,9 @@ begin
     'leave_attachments',
     'leave_applications',
     'attendance',
+    'employee_shift_assignments',
+    'project_shift_assignments',
+    'dpr_upload_registry',
     'dpr_photos',
     'dpr_issues',
     'dpr_activities',
@@ -119,12 +131,20 @@ begin
     'project_cost_codes',
     'projects',
     'customers',
+    'common_cost_codes',
+    'work_types',
+    'expense_categories',
+    'holidays',
+    'leave_types',
+    'shifts',
     'company_settings',
     'app_settings',
     'user_profiles',
     'departments',
     'designations',
-    'organizations'
+    'organizations',
+    'roles',
+    'bootstrap_state'
   ]
   loop
     if to_regclass('public.' || table_name) is not null then

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { CLAIM_STATUS_LABELS, CLAIM_STATUS_TONES } from "@/constants/claims";
 import { useAuth } from "@/hooks/useAuth";
+import { canVerifyClaimAsAccounts } from "@/permissions/accountsPermissions";
 import { claimAccountsService } from "@/services/claimAccountsService";
 import type { AccountsVerificationInput, Claim, ClaimAccountsVerification, PaymentPriority } from "@/types/claims";
 import { formatCurrency } from "@/utils/format";
@@ -36,6 +37,7 @@ export function ClaimAccountsVerificationPage() {
   const deduction = useMemo(() => selected ? Math.max(selected.totalApproved - input.payableAmount, 0) : 0, [selected, input.payableAmount]);
   if (!user) return null;
   const actor = user;
+  const canMutateAccounts = user.role === "accounts_officer";
 
   function openVerify(claim: Claim) {
     setSelected(claim);
@@ -63,10 +65,10 @@ export function ClaimAccountsVerificationPage() {
   return <>
     <PageHeader title="Claim Accounts Verification" description="Confirm the final approved amount, deductions, payment readiness, and SAP requirement before voucher generation." breadcrumbs={[{ label: "Home", to: "/home" }, { label: "Accounts", to: "/accounts" }, { label: "Claim Verification" }]} />
     <Card><CardContent className="p-0">
-      {rows.length === 0 ? <div className="p-6"><EmptyState title="No claims awaiting Accounts" description="Final-approved claims appear here before they can enter the payment queue." /></div> :
+      {rows.length === 0 ? <div className="p-6"><EmptyState title="No claims awaiting Accounts" description="HOD-approved or Master-approved claims appear here before they can enter the payment queue." /></div> :
         <div className="overflow-x-auto"><table className="min-w-[1250px] w-full text-left text-sm">
           <thead className="border-b border-surface-border bg-surface-muted text-xs uppercase text-text-secondary"><tr>
-            {['Claim Number','Employee','Department','Project','Claim Date','Final Approved','Deduction','Payable','Final Approver','Priority','SAP Required','Status','Action'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}
+            {['Claim Number','Employee','Department','Project','Claim Date','Approved Amount','Deduction','Payable','Operational Approver','Priority','SAP Required','Status','Action'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}
           </tr></thead>
           <tbody>{rows.map(({ claim, verification }) => {
             const finalApprover = [...claim.approvals].reverse().find((approval) => approval.stage === "final_approval");
@@ -78,13 +80,13 @@ export function ClaimAccountsVerificationPage() {
               <td className="px-3 py-3">{formatCurrency(verification?.payableAmount ?? claim.totalApproved)}</td><td className="px-3 py-3">{finalApprover?.actorName ?? "—"}</td>
               <td className="px-3 py-3 capitalize">{verification?.paymentPriority ?? "normal"}</td><td className="px-3 py-3">{verification?.requiresSapExport ? "Yes" : "No"}</td>
               <td className="px-3 py-3"><Badge tone={CLAIM_STATUS_TONES[claim.status]}>{CLAIM_STATUS_LABELS[claim.status]}</Badge></td>
-              <td className="px-3 py-3"><div className="flex gap-2"><Link className="inline-flex h-9 items-center justify-center rounded-md border border-brand-blue px-3 text-brand-blue" to={`/claims/${claim.id}`} aria-label="View claim"><Eye className="h-4 w-4" /></Link><Button size="sm" onClick={() => openVerify(claim)} disabled={claim.status === "voucher_pending"}><CheckCircle2 className="h-4 w-4" /></Button><Button size="sm" variant="outline" onClick={() => void returnClaim(claim)}><RotateCcw className="h-4 w-4" /></Button></div></td>
+              <td className="px-3 py-3"><div className="flex gap-2"><Link className="inline-flex h-9 items-center justify-center rounded-md border border-brand-blue px-3 text-brand-blue" to={`/claims/${claim.id}`} aria-label="View claim"><Eye className="h-4 w-4" /></Link>{canVerifyClaimAsAccounts(actor, claim)?<><Button size="sm" onClick={() => openVerify(claim)} disabled={claim.status === "voucher_pending"}><CheckCircle2 className="h-4 w-4" /></Button><Button size="sm" variant="outline" onClick={() => void returnClaim(claim)}><RotateCcw className="h-4 w-4" /></Button></>:null}</div></td>
             </tr>;
           })}</tbody>
         </table></div>}
     </CardContent></Card>
 
-    {selected ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Verify claim for payment">
+    {selected && canMutateAccounts ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-label="Verify claim for payment">
       <Card className="max-h-[90vh] w-full max-w-2xl overflow-y-auto"><CardContent className="space-y-4 p-6">
         <div className="flex items-start justify-between"><div><h2 className="text-xl font-bold">Verify {selected.claimNumber}</h2><p className="text-sm text-text-secondary">{selected.userName} · {selected.projectName}</p></div><Button variant="ghost" size="sm" onClick={() => setSelected(null)}><X className="h-5 w-5" /></Button></div>
         <div className="grid gap-4 sm:grid-cols-3"><Input label="Final approved amount" value={selected.totalApproved} disabled /><Input label="Payable amount" type="number" min={0} max={selected.totalApproved} value={input.payableAmount} onChange={(event) => setInput((current) => ({ ...current, payableAmount: Number(event.target.value) }))} /><Input label="Deduction" value={deduction} disabled /></div>

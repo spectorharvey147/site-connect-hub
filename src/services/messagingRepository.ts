@@ -15,6 +15,8 @@ import type {
 export const messagingRepository = {
   async list(actor: AppUser) {
     const client = requireSupabase();
+    const { data: assignments } = await client.from("user_project_assignments").select("project_id").eq("user_id", actor.id).eq("status", "active");
+    await Promise.all(((assignments as DataRow[] | null) ?? []).map((row) => client.rpc("sync_project_conversation_members", { p_project_id: String(row.project_id) })));
     const { data: memberships, error: memberError } = await client
       .from("conversation_members")
       .select("conversation_id")
@@ -39,10 +41,18 @@ export const messagingRepository = {
         ...((message.message_reactions as DataRow[] | null) ?? []).map((item) => String(item.user_id)),
       ]),
     ]);
-    const [profiles, projects] = await Promise.all([
+    const [profiles, projects, roleResult] = await Promise.all([
       profileNameMap(userIds),
       projectNameMap(rows.map((row) => String(row.project_id ?? ""))),
+      client.from("user_profiles").select("id,role_id").in("id", [...new Set(userIds)]),
     ]);
+    if (roleResult.error) throw new Error(roleResult.error.message);
+    const roles = new Map(
+      ((roleResult.data as DataRow[] | null) ?? []).map((profile) => [
+        String(profile.id),
+        String(profile.role_id),
+      ]),
+    );
     return rows.map((row): Conversation => {
       const members = (row.conversation_members as DataRow[] | null) ?? [];
       const messages = ((row.messages as DataRow[] | null) ?? []).sort((a, b) =>
@@ -60,7 +70,7 @@ export const messagingRepository = {
         participants: members.map((item) => ({
           userId: String(item.user_id),
           userName: profiles.get(String(item.user_id)) ?? "User",
-          userRole: actor.role,
+          userRole: (roles.get(String(item.user_id)) ?? actor.role) as Conversation["participants"][number]["userRole"],
           joinedAt: String(item.joined_at),
           mutedUntil: item.muted_until ? String(item.muted_until) : undefined,
           archivedAt: item.archived_at ? String(item.archived_at) : undefined,
@@ -118,7 +128,15 @@ export const messagingRepository = {
 
   async create(input: NewConversationInput, actor: AppUser, participantIds: string[]) {
     const client = requireSupabase();
+    if (input.type === "project" && input.projectId) {
+      const { data, error } = await client.rpc("sync_project_conversation_members", { p_project_id: input.projectId });
+      if (error) throw new Error(error.message);
+      const conversationId = String(data);
+      await this.send({ conversationId, body: input.firstMessage, attachments: input.attachments }, actor);
+      return (await this.list(actor)).find((row) => row.id === conversationId)!;
+    }
     const { data, error } = await client.from("conversations").insert({
+      organization_id: actor.organizationId,
       type: input.type,
       name: input.title?.trim() || (input.type === "direct" ? "Direct Chat" : "Group Chat"),
       description: input.description?.trim() || null,

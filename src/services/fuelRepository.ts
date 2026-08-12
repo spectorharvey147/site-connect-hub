@@ -96,7 +96,7 @@ export const fuelRepository = {
     const rows = (data as DataRow[] | null) ?? [];
     const [projects, vendors, profiles] = await Promise.all([
       projectNameMap(rows.map((row) => String(row.project_id))),
-      vendorNameMap(rows.map((row) => String(row.vendor_id)), "fuel_vendors"),
+      vendorNameMap(rows.map((row) => String(row.vendor_id)), "vendors"),
       profileNameMap(rows.flatMap((row) => [String(row.submitted_by), String(row.approved_by ?? "")])),
     ]);
     return rows.map((row): FuelReceipt => ({
@@ -303,6 +303,10 @@ export const fuelRepository = {
 
   async approveReceipt(id: string, actor: AppUser) {
     const client = requireSupabase();
+    const { error } = await client.rpc("approve_fuel_receipt", { target_receipt_id: id });
+    if (error) throw new Error(error.message);
+    return (await this.listReceipts(actor)).find((row) => row.id === id)!;
+    /* Legacy client-side approval retained below for migration history only.
     const { data: receipt, error: readError } = await client
       .from("fuel_receipts")
       .select("*")
@@ -387,11 +391,15 @@ export const fuelRepository = {
         created_by: actor.id,
       });
     }
-    return (await this.listReceipts(actor)).find((row) => row.id === id)!;
+    return (await this.listReceipts(actor)).find((row) => row.id === id)!; */
   },
 
   async approveIssue(id: string, actor: AppUser) {
     const client = requireSupabase();
+    const { error } = await client.rpc("approve_fuel_issue", { target_issue_id: id });
+    if (error) throw new Error(error.message);
+    return (await this.listIssues(actor)).find((row) => row.id === id)!;
+    /* Legacy client-side approval retained below for migration history only.
     const { data: issue, error: readError } = await client
       .from("fuel_issues")
       .select("*")
@@ -426,7 +434,7 @@ export const fuelRepository = {
       balance_quantity: current - Number(issue.total_issued),
       created_by: actor.id,
     });
-    return (await this.listIssues(actor)).find((row) => row.id === id)!;
+    return (await this.listIssues(actor)).find((row) => row.id === id)!; */
   },
 
   async createDeposit(input: FuelDepositInput, actor: AppUser) {

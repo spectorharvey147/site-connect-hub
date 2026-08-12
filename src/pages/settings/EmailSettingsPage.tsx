@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import { useAuth } from "@/hooks/useAuth";
 import {
   EMAIL_NOTIFICATION_EVENTS,
@@ -161,6 +162,20 @@ export function EmailSettingsPage() {
                     }
                   />
                 </label>
+                <Input
+                  label="Deployed application URL for email approvals"
+                  placeholder="https://your-site-connect-app.example.com"
+                  value={settings.approvalBaseUrl}
+                  onChange={(event) =>
+                    setSettings({
+                      ...settings,
+                      approvalBaseUrl: event.target.value,
+                    })
+                  }
+                />
+                <p className="text-xs text-text-secondary">
+                  Approval, rejection, and password setup emails use this URL instead of the browser currently open.
+                </p>
                 <div className="grid gap-3 md:grid-cols-2">
                   {EMAIL_NOTIFICATION_EVENTS.map(([event, label]) => (
                     <label

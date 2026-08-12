@@ -83,6 +83,7 @@ export function FuelLandingPage() {
   const { user } = useAuth();
   const { projects } = useSelectableProjects(user);
   const [dashboard, setDashboard] = useState<FuelDashboard | null>(null);
+  const [projectView, setProjectView] = useState("");
   const [receiptForm, setReceiptForm] =
     useState<FuelReceiptInput>(initialReceipt);
   const [issueForm, setIssueForm] = useState<FuelIssueInput>(initialIssue);
@@ -106,8 +107,8 @@ export function FuelLandingPage() {
     if (!user) {
       return;
     }
-    void fuelService.getDashboard(user).then(setDashboard);
-  }, [user]);
+    void fuelService.getDashboard(user, projectView || undefined).then(setDashboard);
+  }, [projectView, user]);
 
   useEffect(() => {
     const projectId = projects[0]?.id ?? "";
@@ -224,6 +225,7 @@ export function FuelLandingPage() {
         description="Record fuel receipts, dispense fuel to machines, and monitor stock, cost and consumption."
         breadcrumbs={[{ label: "Home", to: "/home" }, { label: "Fuel" }]}
       />
+      <div className="mb-5 max-w-md"><label className="text-sm font-semibold">Project view<select className={selectClass + " mt-1"} value={projectView} onChange={(e)=>setProjectView(e.target.value)}><option value="">All assigned projects</option>{projects.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard

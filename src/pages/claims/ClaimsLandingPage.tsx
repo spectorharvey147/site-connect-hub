@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/Card";
 import { claimsService } from "@/services/claimsService";
 import { useAuth } from "@/hooks/useAuth";
+import { canMutateAccounts, canViewAccountsModule } from "@/permissions/accountsPermissions";
 import type { Claim, ClaimReportSummary, UserClaimBalance } from "@/types/claims";
 import { formatCurrency } from "@/utils/format";
 
@@ -67,9 +68,9 @@ export function ClaimsLandingPage() {
         : user.role === "hod"
           ? "/claims/final-approval"
           : user.role === "super_admin"
-            ? "/claims/admin-verification"
+            ? "/claims/final-approval"
             : null;
-  const canPay = ["accounts_officer", "super_admin"].includes(user.role);
+  const canPay = canViewAccountsModule(user);
   const currentBalance =
     balances.find((balance) => balance.userId === user.id) ?? balances[0];
 
@@ -151,16 +152,16 @@ export function ClaimsLandingPage() {
             {queueLink ? (
               <QuickLink
                 icon={<ReceiptText className="h-5 w-5" />}
-                title="Approval Queues"
-                description="Verify, approve, reduce or return claims."
+                title={user.role === "super_admin" ? "Master Exception Approval" : "Approval Queues"}
+                description={user.role === "super_admin" ? "Review claims requiring explicit Master approval." : "Verify, approve, reduce or return claims."}
                 to={queueLink}
               />
             ) : null}
             {canPay ? (
               <QuickLink
                 icon={<WalletCards className="h-5 w-5" />}
-                title="Vouchers"
-                description="Generate vouchers and mark payments paid."
+                title={canMutateAccounts(user) ? "Vouchers" : "Accounts Overview"}
+                description={canMutateAccounts(user) ? "Generate vouchers and process payments." : "View vouchers, payments and ledgers."}
                 to="/claims/vouchers"
               />
             ) : null}

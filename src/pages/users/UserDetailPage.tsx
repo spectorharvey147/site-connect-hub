@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { ROLE_SHORT_LABELS } from "@/constants/roles";
 import { useAuth } from "@/hooks/useAuth";
+import { canManageEmployeeAdvance, canViewEmployeeLedger } from "@/permissions/accountsPermissions";
 import { projectService } from "@/services/projectService";
 import { usersService } from "@/services/usersService";
 import type { ProjectMaster, ProjectUserAssignment } from "@/types/projects";
@@ -91,12 +92,12 @@ export function UserDetailPage() {
                 {resending ? "Sending..." : "Resend Invite"}
               </Button>
             ) : null}
-            <Link to={`/accounts/employee-ledger/${target.id}`}>
+            {actor && canViewEmployeeLedger(actor) ? <Link to={`/accounts/employee-ledger/${target.id}`}>
               <Button variant="secondary" leftIcon={<WalletCards className="h-4 w-4" />}>
                 Finance Ledger
               </Button>
-            </Link>
-            {actor && ["accounts_officer", "super_admin"].includes(actor.role) ? (
+            </Link> : null}
+            {actor && canManageEmployeeAdvance(actor) ? (
               <Link to={`/users/${target.id}/advance`}>
                 <Button variant="secondary" leftIcon={<PlusCircle className="h-4 w-4" />}>Add Advance</Button>
               </Link>

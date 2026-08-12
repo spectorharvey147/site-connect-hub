@@ -320,7 +320,7 @@ values
   ('manager', 'Manager', 'Manager', 'Approve team workflows and monitor project execution.', 30),
   ('admin_hr', 'Admin / HR', 'Admin', 'Verify claims, manage users and maintain master data.', 40),
   ('accounts_officer', 'Accounts Officer', 'Accounts', 'Generate vouchers, process payments and maintain ledgers.', 50),
-  ('super_admin', 'Super Admin / Finance Head', 'Super Admin', 'Final approvals, finance oversight and system configuration.', 100)
+  ('super_admin', 'Super Admin', 'Super Admin', 'Initial master administrator with complete organization oversight.', 100)
 on conflict (id) do update set
   name = excluded.name,
   short_name = excluded.short_name,

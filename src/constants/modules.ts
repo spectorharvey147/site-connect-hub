@@ -10,6 +10,7 @@ import {
   HardHat,
   Home,
   MessageSquareText,
+  RadioTower,
   MapPinned,
   ReceiptText,
   WalletCards,
@@ -191,6 +192,16 @@ export const MODULES: ModuleDefinition[] = [
     category: "admin",
   },
   {
+    key: "communication_center",
+    name: "Communication Center",
+    path: "/communication-center",
+    description: "Approval-first DPR delivery, gateways, groups and audit logs.",
+    icon: RadioTower,
+    allowedRoles: ["super_admin"],
+    accent: "orange",
+    category: "communication",
+  },
+  {
     key: "settings",
     name: "Settings & Master Data",
     path: "/settings",
@@ -243,6 +254,12 @@ export function getVisibleModules(role: Role) {
 }
 
 export const MODULE_LANDING_CONTENT: Record<ModuleKey, ModuleLandingContent> = {
+  communication_center: {
+    title: "Communication Center",
+    description: "Independent, approval-first DPR notifications and delivery operations.",
+    primaryActions: ["Review approvals", "Map project groups", "Inspect gateway health"],
+    workflow: ["Create DPR event", "Approve", "Deliver and audit"],
+  },
   dashboard: {
     title: "Dashboard",
     description: "A role-based summary of work, approvals and risks.",

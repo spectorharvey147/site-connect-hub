@@ -5,7 +5,6 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { AttendanceAdminPage } from "@/pages/attendance/AttendanceAdminPage";
 import { AttendanceLandingPage } from "@/pages/attendance/AttendanceLandingPage";
 import { AttendanceRegisterPage } from "@/pages/attendance/AttendanceRegisterPage";
-import { AttendanceSummaryPage } from "@/pages/attendance/AttendanceSummaryPage";
 import { ManualAttendancePage } from "@/pages/attendance/ManualAttendancePage";
 import { QuickCheckInPage } from "@/pages/attendance/QuickCheckInPage";
 import { ForgotPasswordPage } from "@/pages/auth/ForgotPasswordPage";
@@ -16,16 +15,12 @@ import { ClaimDetailPage } from "@/pages/claims/ClaimDetailPage";
 import { ClaimHistoryPage } from "@/pages/claims/ClaimHistoryPage";
 import { ClaimLedgerPage } from "@/pages/claims/ClaimLedgerPage";
 import { ClaimQueuePage } from "@/pages/claims/ClaimQueuePage";
-import { ClaimReportsPage } from "@/pages/claims/ClaimReportsPage";
 import { ClaimTransactionsPage } from "@/pages/claims/ClaimTransactionsPage";
-import { ClaimVouchersPage } from "@/pages/claims/ClaimVouchersPage";
 import { ClaimsLandingPage } from "@/pages/claims/ClaimsLandingPage";
 import { SubmitClaimPage } from "@/pages/claims/SubmitClaimPage";
-import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { DprDetailPage } from "@/pages/fieldOperations/DprDetailPage";
 import { DprHistoryPage } from "@/pages/fieldOperations/DprHistoryPage";
 import { FieldOperationsLandingPage } from "@/pages/fieldOperations/FieldOperationsLandingPage";
-import { FieldOperationsReportsPage } from "@/pages/fieldOperations/FieldOperationsReportsPage";
 import { SubmitDprPage } from "@/pages/fieldOperations/SubmitDprPage";
 import { HomePage } from "@/pages/home/HomePage";
 import { ApplyLeavePage } from "@/pages/leave/ApplyLeavePage";
@@ -49,7 +44,6 @@ import { ProjectDetailPage } from "@/pages/projects/ProjectDetailPage";
 import { ProjectFormPage } from "@/pages/projects/ProjectFormPage";
 import { ProjectsPage } from "@/pages/projects/ProjectsPage";
 import { CreateTaskPage } from "@/pages/tasks/CreateTaskPage";
-import { TaskDashboardPage } from "@/pages/tasks/TaskDashboardPage";
 import { TaskDetailPage } from "@/pages/tasks/TaskDetailPage";
 import { TaskListPage } from "@/pages/tasks/TaskListPage";
 import { TasksLandingPage } from "@/pages/tasks/TasksLandingPage";
@@ -69,6 +63,18 @@ import {
   VENDOR_ROLES,
 } from "@/routes/routePermissions";
 import type { Role } from "@/types/auth";
+
+const CommunicationCenterPage = lazy(() =>
+  import("@/pages/communication/CommunicationCenterPage").then((module) => ({
+    default: module.CommunicationCenterPage,
+  })),
+);
+const DashboardPage = lazy(() => import("@/pages/dashboard/DashboardPage").then(module=>({default:module.DashboardPage})));
+const AttendanceSummaryPage = lazy(() => import("@/pages/attendance/AttendanceSummaryPage").then(module=>({default:module.AttendanceSummaryPage})));
+const ClaimReportsPage = lazy(() => import("@/pages/claims/ClaimReportsPage").then(module=>({default:module.ClaimReportsPage})));
+const ClaimVouchersPage = lazy(() => import("@/pages/claims/ClaimVouchersPage").then(module=>({default:module.ClaimVouchersPage})));
+const FieldOperationsReportsPage = lazy(() => import("@/pages/fieldOperations/FieldOperationsReportsPage").then(module=>({default:module.FieldOperationsReportsPage})));
+const TaskDashboardPage = lazy(() => import("@/pages/tasks/TaskDashboardPage").then(module=>({default:module.TaskDashboardPage})));
 
 const AccountsLandingPage = lazy(() =>
   import("@/pages/accounts/AccountsLandingPage").then((module) => ({
@@ -158,11 +164,6 @@ const MaterialsSectionPage = lazy(() =>
 const MachineLogsPage = lazy(() =>
   import("@/pages/machinery/MachineLogsPage").then((module) => ({
     default: module.MachineLogsPage,
-  })),
-);
-const MachineryContractsPage = lazy(() =>
-  import("@/pages/machinery/MachineryContractsPage").then((module) => ({
-    default: module.MachineryContractsPage,
   })),
 );
 const MachineryLandingPage = lazy(() =>
@@ -639,11 +640,7 @@ export function AppRoutes() {
         />
         <Route
           path="machinery/contracts"
-          element={
-            <ProtectedRoute allowedRoles={["manager", "hod", "admin_hr", "super_admin"]}>
-              <MachineryContractsPage />
-            </ProtectedRoute>
-          }
+          element={<Navigate to="/vendors/contracts/machinery" replace />}
         />
         <Route
           path="machinery/reports"
@@ -665,12 +662,13 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route path="fuel/deposits" element={restricted(<FuelDepositsPage />, PEOPLE_ROLES)} />
+        <Route path="fuel/deposits" element={restricted(<FuelDepositsPage />, VENDOR_ROLES)} />
         <Route path="fuel/receipts" element={restricted(<FuelLandingPage />, PEOPLE_ROLES)} />
         <Route path="fuel/issues" element={restricted(<FuelLandingPage />, PEOPLE_ROLES)} />
-        {(["vendors", "stock", "ledger", "reports"] as const).map((section) => (
-          <Route key={section} path={`fuel/${section}`} element={restricted(<FuelSectionPage section={section} />, PEOPLE_ROLES)} />
-        ))}
+        <Route path="fuel/vendors" element={restricted(<FuelSectionPage section="vendors" />, VENDOR_ROLES)} />
+        <Route path="fuel/ledger" element={restricted(<FuelSectionPage section="ledger" />, VENDOR_ROLES)} />
+        <Route path="fuel/stock" element={restricted(<FuelSectionPage section="stock" />, PEOPLE_ROLES)} />
+        <Route path="fuel/reports" element={restricted(<FuelSectionPage section="reports" />, PEOPLE_ROLES)} />
         <Route
           path="materials"
           element={
@@ -882,6 +880,10 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="communication-center" element={<ProtectedRoute allowedRoles={["super_admin"]}><CommunicationCenterPage /></ProtectedRoute>} />
+        {(["gateways","project-groups","rules","templates","deliveries","logs","test"] as const).map((section) => (
+          <Route key={section} path={`communication-center/${section}`} element={<ProtectedRoute allowedRoles={["super_admin"]}><CommunicationCenterPage /></ProtectedRoute>} />
+        ))}
         <Route path="reports/claims/ageing" element={<Navigate to="/reports/claim-ageing" replace/>}/>
         <Route path="reports/claims/approval-delay" element={<Navigate to="/reports/claim-approval-delay" replace/>}/>
         <Route path="reports/claims/project-cost" element={<Navigate to="/reports/project-claim-cost" replace/>}/>
@@ -1011,7 +1013,7 @@ export function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route path="users/:userId/advance" element={<ProtectedRoute allowedRoles={["accounts_officer","super_admin"]}><UserAdvancePage/></ProtectedRoute>}/>
+        <Route path="users/:userId/advance" element={<ProtectedRoute allowedRoles={["accounts_officer"]}><UserAdvancePage/></ProtectedRoute>}/>
         <Route path="users/:userId/signature" element={<ProtectedRoute allowedRoles={["admin_hr","super_admin"]}><UserSignaturePage/></ProtectedRoute>}/>
         <Route
           path="users/:userId/edit"

@@ -1,6 +1,6 @@
 import { Save } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/forms/FormField";
@@ -15,15 +15,16 @@ import { projectService } from "@/services/projectService";
 import { vendorContractService } from "@/services/vendorContractService";
 import { vendorsService } from "@/services/vendorsService";
 import type { Department } from "@/types/organization";
-import type { ProjectMaster } from "@/types/projects";
+import type { ProjectCostCode, ProjectMaster } from "@/types/projects";
 import type { Vendor } from "@/types/vendors";
 import type { VendorContractInput, VendorContractType } from "@/types/vendorContracts";
 
 const selectClass = "h-11 w-full rounded-md border border-surface-border bg-surface-card px-3 text-sm text-text-primary";
 const today = new Date().toISOString().slice(0, 10);
+const oneYearFromToday = new Date(Date.now() + 365 * 86400000).toISOString().slice(0, 10);
 const initial: VendorContractInput = {
   contractType: "labour", contractCode: "", contractTitle: "", vendorId: "", projectId: "",
-  startDate: today, endDate: today, status: "active", paymentTerms: "30 days",
+  startDate: today, endDate: oneYearFromToday, status: "active", paymentTerms: "30 days",
   gstApplicable: true, tdsApplicable: true, remarks: "", maleLabourRate: 0,
   labourContractMode: "contractor_labour", standardStartTime: "09:00",
   standardEndTime: "18:00", standardHours: 8, overtimeAfterHours: 8,
@@ -38,16 +39,20 @@ const initial: VendorContractInput = {
   machineOwnership: "rented", machineRemarks: "", contractMachineNumbers: "",
   fuelType: "diesel", fuelRateType: "fixed", fixedFuelRatePerUnit: 0,
   fuelUnit: "L", fuelCreditLimit: 0, fuelAdvanceRequired: false,
+  rateUnit: "unit", materialSpecification: "", minimumOrderQuantity: 0,
+  scopeOfWork: "", serviceFrequency: "monthly",
 };
 
 export function VendorContractFormPage() {
   const { user } = useAuth();
   const { contractId } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [form, setForm] = useState(initial);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [projects, setProjects] = useState<ProjectMaster[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [costCodes, setCostCodes] = useState<ProjectCostCode[]>([]);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     if (!user) return;
@@ -58,9 +63,20 @@ export function VendorContractFormPage() {
       contractId ? vendorContractService.get(contractId, user) : Promise.resolve(null),
     ]).then(([vendorRows, projectRows, departmentRows, contract]) => {
       setVendors(vendorRows); setProjects(projectRows); setDepartments(departmentRows);
-      setForm(contract ? { ...contract } : { ...initial, vendorId: vendorRows[0]?.id ?? "", projectId: projectRows[0]?.id ?? "", departmentId: departmentRows[0]?.id });
+      const requestedType = searchParams.get("type") as VendorContractType | null;
+      setForm(contract ? { ...contract } : { ...initial, contractType: requestedType && ["labour", "machinery", "fuel", "material", "service"].includes(requestedType) ? requestedType : initial.contractType, vendorId: vendorRows[0]?.id ?? "", projectId: projectRows[0]?.id ?? "", departmentId: departmentRows[0]?.id });
     });
-  }, [contractId, user]);
+  }, [contractId, searchParams, user]);
+  useEffect(() => {
+    if (!form.projectId) { setCostCodes([]); return; }
+    void projectService.getProjectCostCodes(form.projectId).then((rows) => {
+      const active = rows.filter((row) => row.status === "active");
+      setCostCodes(active);
+      if (!active.some((row) => row.id === form.costCodeId)) {
+        setForm((current) => ({ ...current, costCodeId: active[0]?.id ?? "" }));
+      }
+    });
+  }, [form.costCodeId, form.projectId]);
   if (!user) return null;
   const update = <K extends keyof VendorContractInput>(key: K, value: VendorContractInput[K]) => setForm((current) => ({ ...current, [key]: value }));
   async function save() {
@@ -77,6 +93,8 @@ export function VendorContractFormPage() {
   const labour = form.contractType === "labour";
   const machinery = form.contractType === "machinery";
   const fuel = form.contractType === "fuel";
+  const material = form.contractType === "material";
+  const service = form.contractType === "service";
   return <>
     <PageHeader title={contractId ? "Edit Vendor Contract" : "New Vendor Contract"} description="Define commercial terms used by site operations and vendor billing." breadcrumbs={[{ label: "Home", to: "/home" }, { label: "Vendors", to: "/vendors" }, { label: "Contracts", to: "/vendors/contracts" }, { label: contractId ? "Edit" : "New" }]} />
     <Card><CardContent className="grid gap-4 pt-6 md:grid-cols-2 xl:grid-cols-3">
@@ -86,6 +104,7 @@ export function VendorContractFormPage() {
       <Select label="Vendor" value={form.vendorId} onChange={(value) => update("vendorId", value)} options={vendors.map((item) => [item.id, item.name])} />
       <Select label="Project / Site" value={form.projectId} onChange={(value) => update("projectId", value)} options={projects.map((item) => [item.id, item.name])} />
       <Select label="Department" value={form.departmentId ?? ""} onChange={(value) => update("departmentId", value)} options={departments.map((item) => [item.id, item.departmentName])} />
+      <Select label="Cost code" value={form.costCodeId ?? ""} onChange={(value) => update("costCodeId", value)} options={costCodes.map((item) => [item.id, `${item.code} - ${item.name}`])} />
       <Input label="Start date" type="date" value={form.startDate} onChange={(event) => update("startDate", event.target.value)} />
       <Input label="End date" type="date" value={form.endDate} onChange={(event) => update("endDate", event.target.value)} />
       <Input label="Payment terms" value={form.paymentTerms} onChange={(event) => update("paymentTerms", event.target.value)} />
@@ -126,6 +145,7 @@ export function VendorContractFormPage() {
         <Money label="Driver beta amount" value={form.driverBetaAmount} onChange={(value) => update("driverBetaAmount", value)} />
         <Select label="Fuel scope" value={form.fuelScope ?? "excluded"} onChange={(value) => update("fuelScope", value as VendorContractInput["fuelScope"])} options={[["included", "Included"], ["excluded", "Excluded"], ["partial", "Partial"]]} />
         <Select label="Driver cost" value={form.driverCost ?? "included"} onChange={(value) => update("driverCost", value as VendorContractInput["driverCost"])} options={[["included", "Included"], ["excluded", "Excluded"], ["additional", "Additional"]]} />
+        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(form.driverFoodIncluded)} onChange={(event) => update("driverFoodIncluded", event.target.checked)} /> Driver food included</label>
         <Input label="Breakdown terms" value={form.breakdownTerms ?? ""} onChange={(event) => update("breakdownTerms", event.target.value)} />
         <Input label="Idle deduction rule" value={form.idleDeductionRule ?? ""} onChange={(event) => update("idleDeductionRule", event.target.value)} />
         <Input label="Machine remarks" value={form.machineRemarks ?? ""} onChange={(event) => update("machineRemarks", event.target.value)} />
@@ -138,6 +158,18 @@ export function VendorContractFormPage() {
         <Input label="Unit" value={form.fuelUnit ?? "L"} onChange={(event) => update("fuelUnit", event.target.value)} />
         <Money label="Credit limit" value={form.fuelCreditLimit} onChange={(value) => update("fuelCreditLimit", value)} />
         <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={Boolean(form.fuelAdvanceRequired)} onChange={(event) => update("fuelAdvanceRequired", event.target.checked)} /> Advance required</label>
+      </> : null}
+      {material ? <>
+        <Input label="Material specification" value={form.materialSpecification ?? ""} onChange={(event) => update("materialSpecification", event.target.value)} />
+        <Money label="Contract rate" value={form.rate} onChange={(value) => update("rate", value)} />
+        <Input label="Rate unit" value={form.rateUnit ?? "unit"} onChange={(event) => update("rateUnit", event.target.value)} />
+        <Money label="Minimum order quantity" value={form.minimumOrderQuantity} onChange={(value) => update("minimumOrderQuantity", value)} />
+      </> : null}
+      {service ? <>
+        <Input label="Scope of work" value={form.scopeOfWork ?? ""} onChange={(event) => update("scopeOfWork", event.target.value)} />
+        <Input label="Service frequency" value={form.serviceFrequency ?? "monthly"} onChange={(event) => update("serviceFrequency", event.target.value)} />
+        <Money label="Contract rate" value={form.rate} onChange={(value) => update("rate", value)} />
+        <Input label="Rate unit" value={form.rateUnit ?? "month"} onChange={(event) => update("rateUnit", event.target.value)} />
       </> : null}
       <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.gstApplicable} onChange={(event) => update("gstApplicable", event.target.checked)} /> GST applicable</label>
       <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.tdsApplicable} onChange={(event) => update("tdsApplicable", event.target.checked)} /> TDS applicable</label>

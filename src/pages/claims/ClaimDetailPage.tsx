@@ -1,16 +1,19 @@
 import { PencilLine, ReceiptText } from "lucide-react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Link, useParams } from "react-router-dom";
 
 import { ApprovalTimeline } from "@/components/claims/ApprovalTimeline";
 import { ClaimAuditTimeline } from "@/components/claims/ClaimAuditTimeline";
 import { ClaimAttachmentsList } from "@/components/claims/ClaimAttachmentsList";
 import { ClaimItemsTable } from "@/components/claims/ClaimItemsTable";
+import { ClaimQueriesPanel } from "@/components/claims/ClaimQueriesPanel";
 import { ClaimStatusBadge } from "@/components/claims/ClaimStatusBadge";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { LoadingState } from "@/components/shared/LoadingState";
 import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Textarea";
 import {
   Card,
   CardContent,
@@ -19,6 +22,7 @@ import {
   CardTitle,
 } from "@/components/ui/Card";
 import { canPerformClaimAction, claimsService } from "@/services/claimsService";
+import { canUseMasterIntervention } from "@/permissions/claimPermissions";
 import { listClaimAuditLogs,type ClaimAuditEvent } from "@/services/auditService";
 import { useAuth } from "@/hooks/useAuth";
 import type { AppUser } from "@/types/auth";
@@ -31,6 +35,10 @@ export function ClaimDetailPage() {
   const [claim, setClaim] = useState<Claim | null>(null);
   const [loading, setLoading] = useState(true);
   const [auditEvents,setAuditEvents]=useState<ClaimAuditEvent[]>([]);
+  const [interventionOpen,setInterventionOpen]=useState(false);
+  const [interventionAction,setInterventionAction]=useState<"place_on_hold"|"return_to_admin"|"return_to_manager"|"return_to_hod"|"cancel_claim"|"release_hold">("place_on_hold");
+  const [interventionReason,setInterventionReason]=useState("");
+  const [intervening,setIntervening]=useState(false);
 
   useEffect(() => {
     if (!user || !claimId) {
@@ -92,6 +100,7 @@ export function ClaimDetailPage() {
                 </Link>
               </Button>
             ) : null}
+            {canUseMasterIntervention(user, claim) ? <Button type="button" variant="danger" onClick={()=>setInterventionOpen(true)}>Master Intervention</Button> : null}
           </div>
         }
       />
@@ -115,6 +124,11 @@ export function ClaimDetailPage() {
               <SummaryRow label="Verified" value={formatCurrency(claim.totalVerified)} />
               <SummaryRow label="Approved" value={formatCurrency(claim.totalApproved)} />
             </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Queries & Missing Documents</CardTitle><CardDescription>Reviewers can ask for clarification or missing attachments; responses remain linked to this claim.</CardDescription></CardHeader>
+            <CardContent><ClaimQueriesPanel claim={claim} user={user} onAttachmentAdded={() => { if (claimId) void claimsService.getClaim(claimId, user).then((next) => next && setClaim(next)); }} /></CardContent>
           </Card>
 
           <Card>
@@ -158,6 +172,7 @@ export function ClaimDetailPage() {
           </Card>
         </div>
       </div>
+      {interventionOpen ? <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"><Card className="w-full max-w-lg"><CardHeader><CardTitle>Master Intervention</CardTitle><CardDescription>This exceptional action is separate from approval history and fully audited.</CardDescription></CardHeader><CardContent className="space-y-4"><label className="block text-sm font-semibold">Action<select className="mt-1 h-11 w-full rounded-md border border-surface-border px-3" value={interventionAction} onChange={event=>setInterventionAction(event.target.value as typeof interventionAction)}><option value="place_on_hold">Place on hold</option><option value="return_to_admin">Return to Admin</option><option value="return_to_manager">Return to Manager</option><option value="return_to_hod">Return to HOD</option><option value="cancel_claim">Cancel claim</option>{claim.status==="on_hold"?<option value="release_hold">Release hold</option>:null}</select></label><Textarea label="Mandatory reason" value={interventionReason} onChange={event=>setInterventionReason(event.target.value)} /><div className="flex justify-end gap-2"><Button variant="secondary" onClick={()=>setInterventionOpen(false)}>Close</Button><Button variant="danger" isLoading={intervening} onClick={()=>{if(!interventionReason.trim()){toast.error("Enter a reason.");return}if(!window.confirm(`Confirm Master Intervention: ${interventionAction.replace(/_/g," ")}?`))return;setIntervening(true);void claimsService.masterIntervention(claim.id,interventionAction,interventionReason,user).then(updated=>{setClaim(updated);setInterventionOpen(false);setInterventionReason("");toast.success("Master Intervention recorded.");return listClaimAuditLogs(claim.id)}).then(setAuditEvents).catch(error=>toast.error(error instanceof Error?error.message:"Intervention failed.")).finally(()=>setIntervening(false))}}>Confirm Intervention</Button></div></CardContent></Card></div> : null}
     </>
   );
 }
@@ -184,7 +199,7 @@ function getActionRoute(user: AppUser, claim: Claim) {
   if (canPerformClaimAction({ user, claim, action: "manager_review" }).allowed) {
     return "/claims/manager-approval";
   }
-  if (canPerformClaimAction({ user, claim, action: "final_review" }).allowed) {
+  if (canPerformClaimAction({ user, claim, action: user.role === "hod" ? "hod_review" : "final_review" }).allowed) {
     return "/claims/final-approval";
   }
   if (canPerformClaimAction({ user, claim, action: "generate_voucher" }).allowed) {

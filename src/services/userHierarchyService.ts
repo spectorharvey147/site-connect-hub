@@ -1,5 +1,6 @@
 import { hierarchyDemoStore } from "@/services/hierarchyDemoStore";
 import { recordAuditLog } from "@/services/auditService";
+import { getEdgeFunctionErrorMessage } from "@/services/edgeFunctionError";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import type { AppUser, Role, UserStatus } from "@/types/auth";
 import type { ManagedUser } from "@/types/users";
@@ -316,7 +317,7 @@ export const userHierarchyService = {
         body: input,
       });
       if (error) {
-        throw new Error(error.message);
+        throw new Error(await getEdgeFunctionErrorMessage(error, "User provisioning failed."));
       }
       if (data?.error) {
         throw new Error(String(data.error));

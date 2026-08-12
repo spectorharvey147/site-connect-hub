@@ -18,6 +18,7 @@ import { LoadingState } from "@/components/shared/LoadingState";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { useAuth } from "@/hooks/useAuth";
+import { useSelectableProjects } from "@/hooks/useSelectableProjects";
 import { machineryService } from "@/services/machineryService";
 import type {
   MachineLog,
@@ -27,6 +28,8 @@ import type {
 
 export function MachineryLandingPage() {
   const { user } = useAuth();
+  const { projects } = useSelectableProjects(user);
+  const [projectId, setProjectId] = useState("");
   const [summary, setSummary] = useState<MachinerySummary | null>(null);
   const [recentLogs, setRecentLogs] = useState<MachineLog[]>([]);
   const [activeContracts, setActiveContracts] = useState<MachineryContract[]>([]);
@@ -39,14 +42,14 @@ export function MachineryLandingPage() {
     }
     setLoading(true);
     setLoadError("");
-    void machineryService.getDashboard(user).then((dashboard) => {
+    void machineryService.getDashboard(user, projectId || undefined).then((dashboard) => {
       setSummary(dashboard.summary);
       setRecentLogs(dashboard.recentLogs);
       setActiveContracts(dashboard.activeContracts);
     }).catch((error) => {
       setLoadError(error instanceof Error ? error.message : "Unable to load machinery.");
     }).finally(() => setLoading(false));
-  }, [user]);
+  }, [projectId, user]);
 
   if (!user) {
     return null;
@@ -70,6 +73,7 @@ export function MachineryLandingPage() {
           </Link>
         }
       />
+      <div className="mb-5 max-w-md"><label className="text-sm font-semibold">Project view<select className="mt-1 h-11 w-full rounded-md border border-surface-border bg-white px-3" value={projectId} onChange={(e)=>setProjectId(e.target.value)}><option value="">All assigned projects</option>{projects.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label></div>
 
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard

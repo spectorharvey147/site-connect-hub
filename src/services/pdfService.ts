@@ -16,7 +16,7 @@ export interface VoucherCompanyDetails {
 
 export const VOUCHER_SIGNATURE_LABELS = [
   "Prepared By", "Admin Verified By", "Manager Approved By", "HOD Approved By",
-  "Final Approved By", "Accounts Verified By", "Paid By / Cashier", "Employee Acknowledgement",
+  "Master Approved By", "Accounts Verified By", "Paid By / Cashier", "Employee Acknowledgement",
 ] as const;
 
 const money = (value: number) => `Rs. ${Number(value || 0).toFixed(2)}`;
@@ -212,7 +212,7 @@ export async function createVoucherPdf(voucher: DetailedClaimVoucher, companyInp
     money(item.finalApprovedAmount), money(item.deductionAmount), money(Math.max(item.finalApprovedAmount - item.deductionAmount, 0)),
   ]);
   detailRows.push(["GRAND TOTAL", "", "", money(voucher.grossClaimedAmount), money(voucher.grossVerifiedAmount), money(voucher.items.reduce((s,i)=>s+i.managerApprovedAmount,0)), money(voucher.items.reduce((s,i)=>s+i.finalApprovedAmount,0)), money(voucher.deductionAmount), money(voucher.netPayableAmount)]);
-  y = drawTable(doc, y, ["Claim", "Category", "Description", "Claimed", "Admin Verified", "Manager Approved", "Final Approved", "Deduction", "Net Payable"], detailRows, [18, 18, 40, 19, 19, 19, 19, 19, 19], { numericFrom: 3 });
+  y = drawTable(doc, y, ["Claim", "Category", "Description", "Claimed", "Admin Verified", "Manager Approved", "Approved Amount", "Deduction", "Net Payable"], detailRows, [18, 18, 40, 19, 19, 19, 19, 19, 19], { numericFrom: 3 });
 
   if (y + 72 > 282) { doc.addPage(); doc.setFillColor("1.0"); doc.rect(0, 0, 210, 297, "F"); y = 14; }
   y += 5;
@@ -229,9 +229,10 @@ export async function createVoucherPdf(voucher: DetailedClaimVoucher, companyInp
 
   const signatureBlocks = [
     ["Prepared By", voucher.preparedByName || "-", voucher.signatures?.["Prepared By"]],
-    ["Admin Verified", voucher.preparedByName || "-", voucher.signatures?.["Admin Verified By"]],
+    ["Admin Verified", voucher.adminVerifierName || "-", voucher.signatures?.["Admin Verified By"]],
     ["Approved by Manager", voucher.managerName || "-", voucher.signatures?.["Manager Approved By"]],
-    ["Final Approval", voucher.hodName || voucher.finalApproverName || "-", voucher.signatures?.["HOD Approved By"] || voucher.signatures?.["Final Approved By"]],
+    ["HOD Approved", voucher.hodName || "-", voucher.signatures?.["HOD Approved By"]],
+    ...(voucher.finalApproverName ? [["Master Approved", voucher.finalApproverName, voucher.signatures?.["Master Approved By"]] as [string, string, string | undefined]] : []),
     ["Accounts Verified", voucher.accountsVerifierName || "-", voucher.signatures?.["Accounts Verified By"]],
     ["Paid By / Cashier", voucher.paidByName || voucher.paymentReference || "Pending", voucher.signatures?.["Paid By / Cashier"]],
     ["Employee Acknowledgement", voucher.paidToName, voucher.signatures?.["Employee Acknowledgement"]],

@@ -19,7 +19,8 @@ export type ModuleKey =
   | "reports"
   | "settings"
   | "users"
-  | "projects";
+  | "projects"
+  | "communication_center";
 
 export interface ModuleDefinition {
   key: ModuleKey;

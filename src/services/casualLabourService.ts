@@ -15,8 +15,10 @@ import type {
   LabourCostSummary,
   LabourEntryMode,
   LabourFilters,
+  LabourPayee,
   LabourRecordStatus,
   LabourWorkerInput,
+  LabourVendor,
 } from "@/types/casualLabour";
 
 const LABOUR_WORKERS_STORAGE_KEY = "site-connect:casual-labour-workers";
@@ -24,6 +26,7 @@ const LABOUR_ATTENDANCE_STORAGE_KEY = "site-connect:casual-labour-attendance";
 
 let memoryWorkers: CasualLabourWorker[] | null = null;
 let memoryAttendance: CasualLabourAttendance[] | null = null;
+let memoryVendors: LabourVendor[] | null = null;
 
 function isBrowser() {
   return typeof window !== "undefined";
@@ -67,11 +70,11 @@ function getDemoUser(email: string) {
 }
 
 function canManageLabour(user: AppUser) {
-  return ["site_staff", "manager", "admin_hr", "super_admin"].includes(user.role);
+  return ["site_staff", "manager", "hod", "admin_hr", "super_admin"].includes(user.role);
 }
 
 function canApproveLabour(user: AppUser, record: CasualLabourAttendance) {
-  if (["admin_hr", "super_admin"].includes(user.role)) {
+  if (["hod", "admin_hr", "super_admin"].includes(user.role)) {
     return true;
   }
   return user.role === "manager" && user.projectIds.includes(record.projectId);
@@ -361,7 +364,12 @@ export function calculateLabourCostSummary(
 
 export const casualLabourService = {
   listVendors() {
-    return LABOUR_VENDORS;
+    return memoryVendors ?? LABOUR_VENDORS;
+  },
+
+  async loadVendors() {
+    if (isSupabaseConfigured) memoryVendors = await casualLabourRepository.listVendors();
+    return this.listVendors();
   },
 
   listWorkers() {
@@ -384,6 +392,9 @@ export const casualLabourService = {
     if (!input.fullName.trim()) {
       throw new Error("Enter labour worker name.");
     }
+    if (!input.vendorId) throw new Error("Select a labour vendor.");
+    if (input.defaultDailyRate <= 0) throw new Error("Daily rate must be greater than zero.");
+    if ((input.defaultOvertimeRate ?? 0) < 0) throw new Error("Overtime rate cannot be negative.");
     if (isSupabaseConfigured) {
       const worker = await casualLabourRepository.createWorker(input, actor);
       memoryWorkers = [worker, ...(memoryWorkers ?? []).filter((item) => item.id !== worker.id)];
@@ -439,8 +450,8 @@ export const casualLabourService = {
     );
   },
 
-  async getDashboard(user: AppUser) {
-    const records = await this.listAttendance(user);
+  async getDashboard(user: AppUser, projectId?: string) {
+    const records = await this.listAttendance(user, projectId ? { projectId } : undefined);
     return {
       summary: summarize(records),
       recent: records.slice(0, 6),
@@ -553,6 +564,10 @@ export const casualLabourService = {
 
   async approveAttendance(recordId: string, actor: AppUser) {
     if (isSupabaseConfigured) {
+      const record = (await casualLabourRepository.listAttendance(actor)).find((item) => item.id === recordId);
+      if (!record) throw new Error("Labour attendance not found.");
+      if (record.status !== "submitted") throw new Error("Only submitted labour attendance can be approved.");
+      if (!canApproveLabour(actor, record)) throw new Error("You do not have permission to approve this attendance.");
       const updated = await casualLabourRepository.approveAttendance(recordId, actor);
       memoryAttendance = (memoryAttendance ?? []).map((item) =>
         item.id === recordId ? updated : item,
@@ -596,12 +611,18 @@ export const casualLabourService = {
       : [];
   },
 
-  async listPayees(actor: AppUser) {
+  async listPayees(actor: AppUser): Promise<LabourPayee[]> {
     return isSupabaseConfigured ? casualLabourRepository.listPayees(actor) : [];
   },
 
   async listBills(actor: AppUser) {
     return isSupabaseConfigured ? casualLabourRepository.listBills(actor) : [];
+  },
+
+  async listAdvanceDeductions(actor: AppUser) {
+    return isSupabaseConfigured
+      ? casualLabourRepository.listAdvanceDeductions(actor)
+      : [];
   },
 
   resetDemoData() {

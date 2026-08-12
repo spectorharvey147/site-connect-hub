@@ -36,9 +36,14 @@ describe("Gmail SMTP settings", () => {
   });
 
   it("covers every required notification event", () => {
-    expect(EMAIL_NOTIFICATION_EVENTS).toHaveLength(25);
-    expect(EMAIL_NOTIFICATION_EVENTS.map(([event]) => event)).toContain(
-      "message_mention",
+    expect(EMAIL_NOTIFICATION_EVENTS).toHaveLength(28);
+    expect(EMAIL_NOTIFICATION_EVENTS.map(([event]) => event)).toEqual(
+      expect.arrayContaining([
+        "message_mention",
+        "user_created",
+        "claim_query_raised",
+        "claim_query_responded",
+      ]),
     );
   });
 });

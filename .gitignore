@@ -11,3 +11,6 @@ pnpm-debug.log*
 *.tsbuildinfo
 .codex-vite.*.log
 supabase/.temp/
+tmp/
+outputs/
+site-connect-release.zip

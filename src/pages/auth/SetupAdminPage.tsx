@@ -55,14 +55,25 @@ const setupAdminSchema = z
     supportPhone: z.string().trim().min(8, "Support phone is required."),
     currency: z.string().trim().min(2, "Currency is required."),
     timezone: z.string().trim().min(2, "Timezone is required."),
-    defaultWorkflow: z.enum(["standard", "manager_hod", "amount_based"]),
+    defaultWorkflow: z.enum(["standard", "amount_based"]),
+    masterApprovalThreshold: z.coerce.number().optional(),
   })
   .refine((values) => values.password === values.confirmPassword, {
     message: "Passwords do not match.",
     path: ["confirmPassword"],
+  })
+  .refine((values) => values.defaultWorkflow !== "amount_based" || Number(values.masterApprovalThreshold) > 0, {
+    message: "Master Approval Threshold is required for amount-based workflow.",
+    path: ["masterApprovalThreshold"],
   });
 
 type SetupAdminFormValues = z.infer<typeof setupAdminSchema>;
+
+function valuesForStep3(workflow: SetupAdminFormValues["defaultWorkflow"]): Array<keyof SetupAdminFormValues> {
+  return workflow === "amount_based"
+    ? ["defaultWorkflow", "masterApprovalThreshold"]
+    : ["defaultWorkflow"];
+}
 
 export function SetupAdminPage() {
   const navigate = useNavigate();
@@ -74,36 +85,49 @@ export function SetupAdminPage() {
     register,
     handleSubmit,
     trigger,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<SetupAdminFormValues>({
     resolver: zodResolver(setupAdminSchema),
     defaultValues: {
-      organizationName: "IPI Site Connect",
-      organizationCode: "IPI",
-      legalName: "IPI Site Connect Private Limited",
+      organizationName: "",
+      organizationCode: "",
+      legalName: "",
       gstNumber: "",
       panNumber: "",
       address: "",
-      city: "Bengaluru",
-      state: "Karnataka",
+      city: "",
+      state: "",
       pincode: "",
       firstName: "",
       lastName: "",
       email: "",
       phone: "",
-      employeeCode: "SC-SUP-NEW",
+      employeeCode: "",
       password: "",
       confirmPassword: "",
-      supportEmail: "support@siteconnect.local",
-      supportPhone: "+91 98765 00000",
+      supportEmail: "",
+      supportPhone: "",
       currency: "INR",
       timezone: "Asia/Kolkata",
-      defaultWorkflow: "amount_based",
+      defaultWorkflow: "standard",
+      masterApprovalThreshold: undefined,
     },
   });
+  const selectedWorkflow = watch("defaultWorkflow");
+
+  async function checkSetupStatus() {
+    setAdminExists(null);
+    setSetupError(null);
+    try {
+      setAdminExists(await authService.checkIfAdminExists());
+    } catch (error) {
+      setSetupError(error instanceof Error ? error.message : "Unable to verify setup status.");
+    }
+  }
 
   useEffect(() => {
-    void authService.checkIfAdminExists().then(setAdminExists);
+    void checkSetupStatus();
   }, []);
 
   async function onSubmit(values: SetupAdminFormValues) {
@@ -129,11 +153,15 @@ export function SetupAdminPage() {
       currency: values.currency,
       timezone: values.timezone,
       defaultWorkflow: values.defaultWorkflow,
+      masterApprovalThreshold:
+        values.defaultWorkflow === "amount_based"
+          ? Number(values.masterApprovalThreshold)
+          : null,
     };
 
     try {
       await createInitialAdmin(payload);
-      toast.success("Organization and first Super Admin created.");
+      toast.success("Organization and Initial Master Account created successfully.");
       navigate("/home", { replace: true });
     } catch (error) {
       const message =
@@ -157,7 +185,7 @@ export function SetupAdminPage() {
         "confirmPassword",
       ],
       ["supportEmail", "supportPhone", "currency", "timezone"],
-      ["defaultWorkflow"],
+      valuesForStep3(selectedWorkflow),
       [],
     ];
     const valid = await trigger(fieldsByStep[step], { shouldFocus: true });
@@ -180,13 +208,32 @@ export function SetupAdminPage() {
         title="Admin setup"
         subtitle="This workspace already has an administrator."
       >
-        <ErrorState message="Initial setup is locked because an admin account exists." />
+        <ErrorState message="Initial setup is already complete because an active Super Admin exists." />
         <Link
           to="/login"
           className="mt-6 inline-flex text-sm font-semibold text-brand-blue"
         >
           Back to login
         </Link>
+      </AuthLayout>
+    );
+  }
+
+  if (adminExists === null) {
+    return (
+      <AuthLayout title="First setup wizard" subtitle="Checking workspace setup...">
+        {setupError ? (
+          <div className="space-y-4">
+            <ErrorState message="Unable to verify setup status." />
+            <Button type="button" onClick={() => void checkSetupStatus()}>
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <Card className="p-6 text-sm font-medium text-text-secondary">
+            Checking workspace setup...
+          </Card>
+        )}
       </AuthLayout>
     );
   }
@@ -245,7 +292,7 @@ export function SetupAdminPage() {
         {step === 1 ? (
           <Card className="space-y-4 p-4">
             <h3 className="text-base font-bold text-text-primary">
-              First Super Admin
+              Initial Master Account — Super Admin
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input
@@ -334,19 +381,14 @@ export function SetupAdminPage() {
             <div className="space-y-3 text-sm text-text-secondary">
               {[
                 {
-                  value: "amount_based",
-                  title: "Amount based matrix",
-                  body: "Claims route through Admin, Manager, HOD, Super Admin and Accounts based on thresholds.",
-                },
-                {
-                  value: "manager_hod",
-                  title: "Manager and HOD",
-                  body: "Most approvals route through Reporting Manager and Department HOD.",
-                },
-                {
                   value: "standard",
                   title: "Standard",
-                  body: "Use the simplest default workflow and refine rules later.",
+                  body: "Claims route through Admin / HR, Manager, HOD and Accounts.",
+                },
+                {
+                  value: "amount_based",
+                  title: "Amount Based",
+                  body: "Claims at or above a configured amount require Master Super Admin approval after HOD approval.",
                 },
               ].map((option) => (
                 <label
@@ -367,6 +409,16 @@ export function SetupAdminPage() {
                   </span>
                 </label>
               ))}
+              {selectedWorkflow === "amount_based" ? (
+                <Input
+                  label="Master Approval Threshold"
+                  type="number"
+                  min={1}
+                  step="0.01"
+                  error={errors.masterApprovalThreshold?.message}
+                  {...register("masterApprovalThreshold")}
+                />
+              ) : null}
             </div>
           </Card>
         ) : null}
