@@ -2,6 +2,7 @@ import { claimsService } from "@/services/claimsService";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import { notificationService } from "@/services/notificationService";
 import { storageService } from "@/services/storageService";
+import { canGenerateVoucher, canPersistOfficialVoucherPdf } from "@/permissions/accountsPermissions";
 import type { AppUser } from "@/types/auth";
 import type { Claim, ClaimAttachment, ClaimVoucherItem, DetailedClaimVoucher, PaymentVoucher } from "@/types/claims";
 
@@ -43,6 +44,7 @@ function detailedFromLocal(voucher: PaymentVoucher, claims: Claim[], user: AppUs
     projectName: new Set(claims.map((claim) => claim.projectName)).size === 1 ? first.projectName : "Multiple projects",
     customerName: new Set(claims.map((claim) => claim.customerName)).size === 1 ? first.customerName : "Multiple customers",
     managerName: approvals.find((a) => a.stage === "manager_approval")?.actorName,
+    adminVerifierName: approvals.find((a) => a.stage === "admin_verification")?.actorName,
     hodName: approvals.find((a) => a.actorRole === "hod")?.actorName,
     finalApproverName: [...approvals].reverse().find((a) => a.stage === "final_approval")?.actorName,
     accountsVerifierName: user.fullName, grossClaimedAmount: claimed, grossVerifiedAmount: verified,
@@ -60,7 +62,7 @@ export const claimVoucherService = {
     if (!claims.length) throw new Error("Select at least one claim.");
     if (claims.length > 1) validateCombinedVoucherClaims(claims);
     else if (claims[0].status !== "voucher_pending") throw new Error("The claim must be in Voucher Pending.");
-    if (!['accounts_officer','super_admin'].includes(user.role)) throw new Error("Voucher generation permission denied.");
+    if (!canGenerateVoucher(user, claims[0])) throw new Error("Voucher generation requires Accounts Officer.");
 
     if (isSupabaseConfigured) {
       const { data, error } = await supabase!.rpc("generate_claim_payment_voucher", { p_claim_ids: claims.map((claim) => claim.id), p_notes: notes || null });
@@ -116,8 +118,8 @@ export const claimVoucherService = {
     const approvals=claims.flatMap(claim=>claim.approvals);const signatureActors=[v.prepared_by,accountsVerifierId,paidById,v.employee_id,...approvals.map(a=>a.actorId)].filter(Boolean);
     const signatureResult=await supabase!.from("user_signatures").select("user_id,signature_path").in("user_id",signatureActors).eq("is_active",true);
     const signatures:Record<string,string>={};
-    for(const row of signatureResult.data??[]){const url=await storageService.createSignedUrl("user-signatures",row.signature_path).catch(()=>undefined);if(!url)continue;if(row.user_id===v.prepared_by)signatures["Prepared By"]=url;if(row.user_id===accountsVerifierId)signatures["Accounts Verified By"]=url;if(row.user_id===paidById)signatures["Paid By / Cashier"]=url;if(row.user_id===v.employee_id&&(paymentsResult.data??[]).length)signatures["Employee Acknowledgement"]=url;const approval=approvals.find(a=>a.actorId===row.user_id);if(approval?.stage==="admin_verification")signatures["Admin Verified By"]=url;if(approval?.stage==="manager_approval")signatures["Manager Approved By"]=url;if(approval?.actorRole==="hod")signatures["HOD Approved By"]=url;if(approval?.stage==="final_approval")signatures["Final Approved By"]=url;}
-    const actorIds=[accountsVerifierId,paidById].filter(Boolean);const actorResult=actorIds.length?await supabase!.from("user_profiles").select("id,full_name").in("id",actorIds):{data:[]};
+    for(const row of signatureResult.data??[]){const url=await storageService.createSignedUrl("user-signatures",row.signature_path).catch(()=>undefined);if(!url)continue;if(row.user_id===v.prepared_by)signatures["Prepared By"]=url;if(row.user_id===accountsVerifierId)signatures["Accounts Verified By"]=url;if(row.user_id===paidById)signatures["Paid By / Cashier"]=url;if(row.user_id===v.employee_id&&(paymentsResult.data??[]).length)signatures["Employee Acknowledgement"]=url;const approval=approvals.find(a=>a.actorId===row.user_id);if(approval?.stage==="admin_verification")signatures["Admin Verified By"]=url;if(approval?.stage==="manager_approval")signatures["Manager Approved By"]=url;if(approval?.actorRole==="hod")signatures["HOD Approved By"]=url;if(approval?.stage==="final_approval")signatures["Master Approved By"]=url;}
+    const actorIds=[v.prepared_by,accountsVerifierId,paidById].filter(Boolean);const actorResult=actorIds.length?await supabase!.from("user_profiles").select("id,full_name").in("id",actorIds):{data:[]};
     const items: ClaimVoucherItem[] = itemData.map((row) => ({ id: row.id, voucherId, claimId: row.claim_id, claimItemId: row.claim_item_id ?? undefined,
       claimNumber: row.claim_number, expenseDate: row.expense_date, category: row.expense_category_snapshot ?? "", projectName: row.project_name_snapshot ?? "",
       customerName: row.customer_name_snapshot ?? undefined, costCode: row.project_cost_code_snapshot ?? "", description: row.description ?? "",
@@ -135,11 +137,12 @@ export const claimVoucherService = {
       employeeCode: employeeResult.data?.employee_code ?? employeeResult.data?.employee_id ?? undefined, projectName: first?.projectName, customerName: first?.customerName,
       approvedAmount: Number(v.net_payable_amount), grossClaimedAmount: Number(v.gross_claimed_amount), grossVerifiedAmount: Number(v.gross_verified_amount),
       deductionAmount: Number(v.gross_deduction_amount), netPayableAmount: Number(v.net_payable_amount), preparedBy: v.prepared_by ?? user.id,
-      preparedByName: user.fullName, accountsVerifierName:actorResult.data?.find(row=>row.id===accountsVerifierId)?.full_name,paidByName:actorResult.data?.find(row=>row.id===paidById)?.full_name,status: v.payment_status === "partially_paid" ? "partial_paid" : v.payment_status === "cancelled" ? "void" : v.payment_status,
+      preparedByName: actorResult.data?.find(row=>row.id===v.prepared_by)?.full_name ?? "-", adminVerifierName: approvals.find(a=>a.stage==="admin_verification")?.actorName, managerName: approvals.find(a=>a.stage==="manager_approval")?.actorName, hodName: approvals.find(a=>a.stage==="hod_approval")?.actorName, finalApproverName: approvals.find(a=>a.stage==="final_approval"&&a.actorRole==="super_admin")?.actorName, accountsVerifierName:actorResult.data?.find(row=>row.id===accountsVerifierId)?.full_name,paidByName:actorResult.data?.find(row=>row.id===paidById)?.full_name,status: v.payment_status === "partially_paid" ? "partial_paid" : v.payment_status === "cancelled" ? "void" : v.payment_status,
       createdAt: v.created_at, paymentReference: v.payment_reference ?? undefined, paidAt: v.payment_date ?? undefined, paidAmount:(paymentsResult.data??[]).reduce((sum,row)=>sum+Number(row.payment_amount),0),previousAdvanceBalance:Number((ledgerResult.data??[]).filter(row=>["opening_balance","advance_added"].includes(row.entry_type)&&row.created_at<=v.created_at).at(-1)?.balance_after??0),balanceAfterPayment:Number((ledgerResult.data??[]).filter(row=>["payment_processed","partial_payment"].includes(row.entry_type)).at(-1)?.balance_after??0),items, attachments, signatures };
   },
 
   async persistPdf(voucher: DetailedClaimVoucher, user: AppUser, bytes: ArrayBuffer | Uint8Array, withAttachments: boolean) {
+    if (!canPersistOfficialVoucherPdf(user)) throw new Error("Official voucher PDF persistence requires Accounts Officer.");
     const field = withAttachments ? "voucher_with_attachments_pdf_path" : "voucher_pdf_path";
     const fileName = `${voucher.voucherNumber}${withAttachments ? "-with-attachments" : ""}.pdf`;
     if (!isSupabaseConfigured) {

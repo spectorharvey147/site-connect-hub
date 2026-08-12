@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { claimsService } from "@/services/claimsService";
+import { offlineQueueService } from "@/services/offlineQueueService";
 import { expenseCategoryService } from "@/services/expenseCategoryService";
 import { useAuth } from "@/hooks/useAuth";
 import { useSelectableProjects } from "@/hooks/useSelectableProjects";
@@ -416,6 +417,11 @@ export function SubmitClaimPage() {
       setSubmitting(true);
       try {
         const input = buildClaimInput(values);
+        if (!navigator.onLine) {
+          await offlineQueueService.enqueue({ type: "claim-draft", payload: { input, submit: !saveAsDraft } });
+          toast.success(saveAsDraft ? "Claim draft queued for synchronization." : "Claim queued and will submit when online.");
+          return;
+        }
         const claim = saveAsDraft
           ? await claimsService.saveDraft(input, user)
           : await claimsService.submitClaim(input, user);

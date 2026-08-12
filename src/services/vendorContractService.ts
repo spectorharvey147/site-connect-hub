@@ -91,6 +91,11 @@ function commercialTerms(contract: VendorContract) {
     fuelUnit: contract.fuelUnit,
     fuelCreditLimit: contract.fuelCreditLimit,
     fuelAdvanceRequired: contract.fuelAdvanceRequired,
+    rateUnit: contract.rateUnit,
+    materialSpecification: contract.materialSpecification,
+    minimumOrderQuantity: contract.minimumOrderQuantity,
+    scopeOfWork: contract.scopeOfWork,
+    serviceFrequency: contract.serviceFrequency,
   };
 }
 
@@ -102,10 +107,57 @@ const contractSchema = z
     contractType: z.enum(["labour", "machinery", "fuel", "material", "service"]),
     startDate: z.string().trim().min(1, "Start date is required."),
     endDate: z.string().trim().min(1, "End date is required."),
+    contractTitle: z.string().trim().min(3, "Contract title is required."),
+    departmentId: z.string().trim().min(1, "Department is required."),
+    costCodeId: z.string().trim().min(1, "Cost code is required."),
+    paymentTerms: z.string().trim().min(1, "Payment terms are required."),
+    status: z.enum(["draft", "active", "expired", "inactive"]),
+    maleLabourRate: z.number().nonnegative().optional(),
+    femaleLabourRate: z.number().nonnegative().optional(),
+    supervisorRate: z.number().nonnegative().optional(),
+    skilledLabourRate: z.number().nonnegative().optional(),
+    unskilledLabourRate: z.number().nonnegative().optional(),
+    machineType: z.string().trim().optional(),
+    machineNumber: z.string().trim().optional(),
+    rate: z.number().nonnegative().optional(),
+    fuelType: z.string().trim().optional(),
+    fuelRateType: z.enum(["fixed", "market", "slip_based"]).optional(),
+    fixedFuelRatePerUnit: z.number().nonnegative().optional(),
+    fuelUnit: z.string().trim().optional(),
+    rateUnit: z.string().trim().optional(),
+    materialSpecification: z.string().trim().optional(),
+    minimumOrderQuantity: z.number().nonnegative().optional(),
+    scopeOfWork: z.string().trim().optional(),
+    serviceFrequency: z.string().trim().optional(),
   })
-  .refine((value) => value.endDate >= value.startDate, {
+  .refine((value) => value.endDate > value.startDate, {
     message: "Contract end date must be after its start date.",
     path: ["endDate"],
+  })
+  .superRefine((value, context) => {
+    if (value.status !== "active") return;
+    const issue = (message: string, path: string) => context.addIssue({ code: "custom", message, path: [path] });
+    if (value.contractType === "labour" && Math.max(value.maleLabourRate ?? 0, value.femaleLabourRate ?? 0, value.supervisorRate ?? 0, value.skilledLabourRate ?? 0, value.unskilledLabourRate ?? 0) <= 0) issue("An active labour contract requires at least one positive labour rate.", "maleLabourRate");
+    if (value.contractType === "machinery") {
+      if (!value.machineType) issue("Machine type is required for an active machinery contract.", "machineType");
+      if (!value.machineNumber) issue("Machine number is required for an active machinery contract.", "machineNumber");
+      if ((value.rate ?? 0) <= 0) issue("An active machinery contract requires a positive rate.", "rate");
+    }
+    if (value.contractType === "fuel") {
+      if (!value.fuelType) issue("Fuel type is required for an active fuel contract.", "fuelType");
+      if (!value.fuelUnit) issue("Fuel unit is required for an active fuel contract.", "fuelUnit");
+      if (value.fuelRateType === "fixed" && (value.fixedFuelRatePerUnit ?? 0) <= 0) issue("A fixed fuel contract requires a positive rate.", "fixedFuelRatePerUnit");
+    }
+    if (value.contractType === "material") {
+      if (!value.materialSpecification) issue("Material specification is required for an active material contract.", "materialSpecification");
+      if (!value.rateUnit) issue("Rate unit is required for an active material contract.", "rateUnit");
+      if ((value.rate ?? 0) <= 0) issue("An active material contract requires a positive rate.", "rate");
+    }
+    if (value.contractType === "service") {
+      if (!value.scopeOfWork) issue("Scope of work is required for an active service contract.", "scopeOfWork");
+      if (!value.rateUnit) issue("Rate unit is required for an active service contract.", "rateUnit");
+      if ((value.rate ?? 0) <= 0) issue("An active service contract requires a positive rate.", "rate");
+    }
   });
 
 function validateContract(input: VendorContractInput) {
@@ -306,7 +358,7 @@ async function saveNormalizedContractDetails(contract: VendorContract, actor: Ap
     ["supervisor", "Supervisor / day", "day", contract.supervisorRate],
     ["skilled_labour", "Skilled labour / day", "day", contract.skilledLabourRate],
     ["unskilled_labour", "Unskilled labour / day", "day", contract.unskilledLabourRate],
-    ["standard_rate", "Standard contract rate", contract.billingType ?? "unit", contract.rate],
+    ["standard_rate", "Standard contract rate", contract.rateUnit ?? contract.billingType ?? "unit", contract.rate],
     ["fuel_rate", "Fuel rate", contract.fuelUnit ?? "L", contract.fixedFuelRatePerUnit],
   ].filter(([, , , rate]) => Number(rate ?? 0) > 0);
   if (rateCards.length) {
@@ -434,7 +486,17 @@ export const vendorContractService = {
         .single();
       if (error) throw new Error(error.message);
       Object.assign(contract, mapContract(data as Row));
-      await saveNormalizedContractDetails(contract, actor);
+      try {
+        await saveNormalizedContractDetails(contract, actor);
+      } catch (error) {
+        // Creating a contract and its normalized subtype rows spans multiple
+        // PostgREST requests. Compensate a failed child write so callers never
+        // observe a parent-only contract.
+        if (!existing) {
+          await supabase.from("vendor_contracts").delete().eq("id", contract.id);
+        }
+        throw error;
+      }
     }
     memoryContracts = [contract, ...memoryContracts.filter((item) => item.id !== contract.id)];
     await recordAuditLog({

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -16,8 +16,8 @@ describe("production reset safety", () => {
     expect(sql).not.toContain("truncate table public.%I cascade");
   });
 
-  it("deletes objects only from the approved Site Connect buckets", () => {
-    const sql = resetFile("002_wipe_storage.sql");
+  it("empties approved buckets through the Storage API, never storage.objects SQL", () => {
+    const script = resetFile("002_wipe_storage.ps1");
     const requiredBuckets = [
       "organization-logos",
       "profile-photos",
@@ -35,16 +35,17 @@ describe("production reset safety", () => {
     ];
 
     for (const bucket of requiredBuckets) {
-      expect(sql).toContain(`'${bucket}'`);
+      expect(script).toContain(`"${bucket}"`);
     }
-    expect(sql).toContain("where bucket_id in");
-    expect(sql).not.toMatch(/delete\s+from\s+storage\.objects\s*;/i);
+    expect(script).toContain("/storage/v1/bucket/$bucket/empty");
+    expect(script).not.toContain("storage.objects");
+    expect(existsSync(resolve(process.cwd(), "supabase", "reset", "002_wipe_storage.sql"))).toBe(false);
   });
 
   it("never references the local environment file", () => {
     for (const name of [
       "001_wipe_app_data.sql",
-      "002_wipe_storage.sql",
+      "002_wipe_storage.ps1",
       "003_optional_wipe_auth_users.sql",
       "004_fresh_seed.sql",
     ]) {

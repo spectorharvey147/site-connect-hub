@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
-import { claimsService } from "@/services/claimsService";
+import { canPerformClaimAction, claimsService } from "@/services/claimsService";
 import { useAuth } from "@/hooks/useAuth";
 import type { Claim, ClaimReviewInput } from "@/types/claims";
 import { formatCurrency } from "@/utils/format";
@@ -40,9 +40,9 @@ const stageCopy: Record<
     reviewStage: "manager_approval",
   },
   final: {
-    title: "Super Admin Final Approval",
-    description: "Authorize claims for payment processing.",
-    routeLabel: "Final Approval",
+    title: "Master Exception Approval",
+    description: "Approve only claims whose resolved matrix explicitly requires Super Admin.",
+    routeLabel: "Master Exception Approval",
     reviewStage: "final_approval",
   },
 };
@@ -54,7 +54,7 @@ export function ClaimQueuePage({ stage }: { stage: ClaimQueueStage }) {
     stage === "final" && user?.role === "hod"
       ? {
           ...stageCopy.final,
-          title: "HOD Final Approval",
+          title: "HOD / Department Head Approval",
           description: "Approve claims for your department when the matrix assigns HOD final authority.",
         }
       : stageCopy[stage];
@@ -97,7 +97,7 @@ export function ClaimQueuePage({ stage }: { stage: ClaimQueueStage }) {
             <ReviewCard
               key={claim.id}
               claim={claim}
-              stage={copy.reviewStage}
+              stage={stage === "final" && user.role === "hod" ? "hod_approval" : copy.reviewStage}
               onComplete={loadQueue}
             />
           ))}
@@ -126,6 +126,15 @@ function ReviewCard({
   if (!user) {
     return null;
   }
+  const action =
+    stage === "admin_verification"
+      ? "admin_review"
+      : stage === "manager_approval"
+        ? "manager_review"
+        : stage === "hod_approval"
+          ? "hod_review"
+          : "final_review";
+  const canReview = canPerformClaimAction({ user, claim, action }).allowed;
 
   async function submitDecision(decision: ClaimReviewInput["decision"]) {
     if (!user) {
@@ -211,7 +220,7 @@ function ReviewCard({
             placeholder="For Request Changes or Reject, enter clear reason/details for the user."
           />
         </div>
-        <div className="flex flex-wrap gap-2">
+        {canReview ? <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             leftIcon={<CheckCircle2 className="h-4 w-4" />}
@@ -247,7 +256,7 @@ function ReviewCard({
           >
             Reject
           </Button>
-        </div>
+        </div> : <p className="rounded-md bg-slate-50 p-3 text-sm text-text-secondary">You can inspect this claim, but your role cannot perform this operational action.</p>}
       </CardContent>
     </Card>
   );

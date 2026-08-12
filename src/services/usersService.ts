@@ -1,5 +1,6 @@
 import { hierarchyDemoStore } from "@/services/hierarchyDemoStore";
 import { recordAuditLog } from "@/services/auditService";
+import { getEdgeFunctionErrorMessage } from "@/services/edgeFunctionError";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
 import { userHierarchyService } from "@/services/userHierarchyService";
 import type { AppUser } from "@/types/auth";
@@ -217,7 +218,7 @@ export const usersService = {
     const { data, error } = await supabase.functions.invoke("provision-user", {
       body: { action: "resend_invite", userId },
     });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(await getEdgeFunctionErrorMessage(error, "Invitation could not be resent."));
     if (data?.error) throw new Error(String(data.error));
     return { message: String(data?.message ?? "Invitation resent.") };
   },

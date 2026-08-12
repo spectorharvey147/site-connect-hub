@@ -13,7 +13,16 @@ export const claimEmailActionService = {
       p_scope: scope, p_expires_hours: hours,
     });
     if (error) throw new Error(error.message);
-    return `${window.location.origin}/claim-action?token=${data}`;
+    const { data: settings } = await client()
+      .from("app_settings")
+      .select("notifications")
+      .eq("id", "default")
+      .maybeSingle();
+    const configured = String(
+      (settings?.notifications as { approvalBaseUrl?: string } | null)
+        ?.approvalBaseUrl ?? "",
+    ).trim().replace(/\/$/, "");
+    return `${configured || window.location.origin}/claim-action?token=${data}`;
   },
 
   async createAndSend(input: {

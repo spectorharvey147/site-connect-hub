@@ -60,21 +60,6 @@ function normalizeIdentifier(identifier: string) {
   return identifier.trim().toLowerCase();
 }
 
-function isSessionFresh(session: AuthSession) {
-  return new Date(session.expiresAt).getTime() > Date.now();
-}
-
-function readPersistedSession() {
-  const stored = window.localStorage.getItem(SESSION_STORAGE_KEY);
-  if (!stored) return null;
-  try {
-    const session = JSON.parse(stored) as AuthSession;
-    return isSessionFresh(session) ? session : null;
-  } catch {
-    return null;
-  }
-}
-
 async function withTimeout<T>(promise: Promise<T>, milliseconds: number) {
   let timeoutId: number | undefined;
   try {
@@ -215,10 +200,6 @@ export const authService = {
     }
 
     if (isSupabaseConfigured && supabase) {
-      const persisted = readPersistedSession();
-      if (persisted) {
-        return persisted;
-      }
       try {
         const { data, error } = await withTimeout(
           supabase.auth.getSession(),
@@ -238,8 +219,8 @@ export const authService = {
           return session;
         }
       } catch {
-        const fallback = readPersistedSession();
-        if (fallback) return fallback;
+        clearPersistedSession();
+        throw new Error("Your session could not be verified. Reconnect and sign in again.");
       }
       clearPersistedSession();
       return null;
@@ -247,6 +228,24 @@ export const authService = {
 
     clearPersistedSession();
     return null;
+  },
+
+  async requireValidSupabaseSession() {
+    if (!supabase || !isSupabaseConfigured) throw new Error("Supabase authentication is not configured.");
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.user || !data.session.access_token) {
+      clearPersistedSession();
+      throw new Error("Your session has expired. Sign in again before continuing.");
+    }
+    if (data.session.expires_at && data.session.expires_at * 1000 <= Date.now()) {
+      const refreshed = await supabase.auth.refreshSession();
+      if (refreshed.error || !refreshed.data.session) {
+        clearPersistedSession();
+        throw new Error("Your session has expired. Sign in again before continuing.");
+      }
+      return refreshed.data.session;
+    }
+    return data.session;
   },
 
   async login(credentials: LoginCredentials): Promise<AuthSession> {

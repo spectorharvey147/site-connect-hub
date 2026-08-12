@@ -47,9 +47,9 @@ export const ROLE_OPTIONS: RoleOption[] = [
   },
   {
     id: "super_admin",
-    label: "Super Admin / Finance Head",
+    label: "Super Admin",
     shortLabel: "Super Admin",
-    description: "Final approvals, financial oversight and system settings.",
+    description: "Initial master administrator with complete organization oversight.",
     rank: 100,
   },
 ];

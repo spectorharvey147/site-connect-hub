@@ -23,12 +23,27 @@ export interface CasualLabourWorker {
   skillType?: LabourSkillType;
   vendorId: string;
   vendorName: string;
+  projectId?: string;
+  vendorContractId?: string;
+  phone?: string;
+  idProofType?: string;
+  idProofNumber?: string;
   defaultDailyRate: number;
   defaultOvertimeRate?: number;
   defaultPayeeId?: string;
   status: "active" | "inactive";
   createdAt: string;
   updatedAt: string;
+}
+
+export interface LabourPayee {
+  id: string;
+  projectId: string;
+  vendorContractId?: string;
+  vendorId?: string;
+  payeeType: LabourPayeeType;
+  payeeName: string;
+  phone?: string;
 }
 
 export interface LabourAttendanceRow {
@@ -107,6 +122,15 @@ export interface LabourWorkerInput {
   category: LabourCategory;
   vendorId: string;
   defaultDailyRate: number;
+  projectId?: string;
+  vendorContractId?: string;
+  gender?: "male" | "female" | "other";
+  skillType?: LabourSkillType;
+  phone?: string;
+  idProofType?: string;
+  idProofNumber?: string;
+  defaultOvertimeRate?: number;
+  defaultPayeeId?: string;
 }
 
 export interface LabourFilters {

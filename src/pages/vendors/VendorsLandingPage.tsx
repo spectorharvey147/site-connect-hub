@@ -5,8 +5,10 @@ import {
   IndianRupee,
   ReceiptText,
   Save,
+  FileText,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/forms/FormField";
@@ -29,6 +31,14 @@ import {
   calculateVendorBillTotal,
   vendorsService,
 } from "@/services/vendorsService";
+import {
+  canApproveVendorBill,
+  canCreateVendorBill,
+  canGenerateVendorVoucher,
+  canManageVendorMaster,
+  canRecordVendorPayment,
+  canVerifyVendorBill,
+} from "@/permissions/vendorPermissions";
 import {
   vendorBillSourceService,
   type VendorBillSourcePreview,
@@ -101,12 +111,11 @@ export function VendorsLandingPage() {
   const [sourcePreview, setSourcePreview] =
     useState<VendorBillSourcePreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
-  const canManageVendors = user
-    ? ["admin_hr", "super_admin"].includes(user.role)
-    : false;
-  const canVerify = user ? ["admin_hr", "super_admin"].includes(user.role) : false;
-  const canApprove = user?.role === "super_admin";
-  const canPay = user ? ["accounts_officer", "super_admin"].includes(user.role) : false;
+  const canManageVendors = user ? canManageVendorMaster(user) : false;
+  const canVerify = user ? canVerifyVendorBill(user) : false;
+  const canApprove = user ? canApproveVendorBill(user) : false;
+  const canPay = user ? canGenerateVendorVoucher(user) || canRecordVendorPayment(user) : false;
+  const canCreateBills = user ? canCreateVendorBill(user) : false;
   const billTotal = calculateVendorBillTotal(billForm);
 
   useEffect(() => {
@@ -231,6 +240,7 @@ export function VendorsLandingPage() {
         title="Vendors"
         description="Maintain vendor master data, bill processing, payment vouchers, settlements and vendor ledger balances."
         breadcrumbs={[{ label: "Home", to: "/home" }, { label: "Vendors" }]}
+        action={<Link to="/vendors/contracts"><Button type="button" variant="secondary" leftIcon={<FileText className="h-4 w-4" />}>Vendor Contracts</Button></Link>}
       />
 
       <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -366,6 +376,8 @@ export function VendorsLandingPage() {
             <CardTitle>Vendor Bill</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {!canCreateBills ? <p className="rounded-lg border border-surface-border bg-slate-50 p-3 text-sm text-text-secondary">Vendor bill preparation and submission are available to Admin / HR and Super Admin.</p> : null}
+            <fieldset disabled={!canCreateBills} className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <FormField label="Vendor">
                 <select
@@ -555,6 +567,7 @@ export function VendorsLandingPage() {
                 </div>
               </div>
             ) : null}
+            </fieldset>
           </CardContent>
         </Card>
       </div>

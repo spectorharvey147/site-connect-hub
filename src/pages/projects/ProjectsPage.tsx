@@ -77,6 +77,7 @@ export function ProjectsPage() {
               <th className="px-4 py-3">Assignments</th>
               <th className="px-4 py-3 text-right">Budget</th>
               <th className="px-4 py-3">Status</th>
+              <th className="px-4 py-3">Attendance</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
           </thead>
@@ -122,6 +123,7 @@ export function ProjectsPage() {
                     {project.status}
                   </Badge>
                 </td>
+                <td className="px-4 py-3"><Badge tone={project.attendanceReady?"success":"warning"}>{project.attendanceReady?"Geofence ready":"Not ready"}</Badge></td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
                     <Link to={`/projects/${project.id}`}>

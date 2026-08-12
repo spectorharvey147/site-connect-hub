@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -31,10 +32,13 @@ export function AttendanceRegisterPage() {
 
   useEffect(() => {
     if (!user) return;
+    const [year, monthNumber] = month.split("-").map(Number);
+    const lastDay = new Date(year, monthNumber, 0).getDate();
     void Promise.all([
-      attendanceService.listAttendance(user, { fromDate: `${month}-01`, toDate: `${month}-31`, status, projectId: projectId || undefined }),
+      attendanceService.listAttendance(user, { fromDate: `${month}-01`, toDate: `${month}-${String(lastDay).padStart(2, "0")}`, status, projectId: projectId || undefined }),
       leaveService.loadHolidays(),
-    ]).then(([attendance, loadedHolidays]) => { setRecords(attendance); setHolidays(loadedHolidays); });
+    ]).then(([attendance, loadedHolidays]) => { setRecords(attendance); setHolidays(loadedHolidays); })
+      .catch((error) => toast.error(error instanceof Error ? error.message : "Unable to load attendance register."));
   }, [month, projectId, status, user]);
 
   const filteredRecords = useMemo(() => { const needle = userSearch.trim().toLowerCase(); return records.filter((record) => !needle || record.userName.toLowerCase().includes(needle) || record.employeeId.toLowerCase().includes(needle)); }, [records, userSearch]);

@@ -1,7 +1,7 @@
 import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
-import { createUserVoucherPacketPdf, createVoucherPdf } from "@/services/pdfService";
+import { createUserVoucherPacketPdf, createVoucherPdf, createVoucherWithAttachmentsPdf } from "@/services/pdfService";
 import type { DetailedClaimVoucher } from "@/types/claims";
 
 function voucher(itemCount: number): DetailedClaimVoucher {
@@ -43,6 +43,19 @@ describe("payment voucher PDF", () => {
     const bytes=await createUserVoucherPacketPdf([row],{name:"IPI Construction"});
     const pdf=await PDFDocument.load(bytes);
     expect(pdf.getPageCount()).toBeGreaterThanOrEqual(2);
+  });
+
+  it("embeds PDF and PNG bills and preserves a reference for a missing file", async () => {
+    const source=await PDFDocument.create();source.addPage([200,200]);
+    const pdfData=`data:application/pdf;base64,${Buffer.from(await source.save()).toString("base64")}`;
+    const pngData="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nVQAAAAASUVORK5CYII=";
+    const row=voucher(1);row.attachments=[
+      {id:"pdf",fileName:"bill.pdf",fileType:"application/pdf",fileSize:100,url:pdfData,uploadedAt:"2026-07-02T00:00:00Z"},
+      {id:"png",fileName:"bill.png",fileType:"image/png",fileSize:100,url:pngData,uploadedAt:"2026-07-02T00:00:00Z"},
+      {id:"missing",fileName:"missing.pdf",fileType:"application/pdf",fileSize:0,url:"data:application/pdf;base64,",uploadedAt:"2026-07-02T00:00:00Z"},
+    ];
+    const output=await PDFDocument.load(await createVoucherWithAttachmentsPdf(row));
+    expect(output.getPageCount()).toBeGreaterThanOrEqual(6);
   });
 
 });

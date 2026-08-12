@@ -4,6 +4,15 @@ import { recordAuditLog } from "@/services/auditService";
 import { isSupabaseConfigured } from "@/services/supabaseClient";
 import { vendorBillSourceService } from "@/services/vendorBillSourceService";
 import { vendorsRepository } from "@/services/vendorsRepository";
+import {
+  canApproveVendorBill,
+  canCreateVendorBill,
+  canGenerateVendorVoucher,
+  canManageVendorMaster,
+  canRecordVendorPayment,
+  canVerifyVendorBill,
+  canViewVendors,
+} from "@/permissions/vendorPermissions";
 import type { AppUser, Role } from "@/types/auth";
 import type {
   Vendor,
@@ -380,27 +389,23 @@ function writeLedger(ledger: VendorLedgerEntry[]) {
 }
 
 function canSeeVendors(role: Role) {
-  return ["manager", "hod", "admin_hr", "super_admin", "accounts_officer"].includes(role);
+  return canViewVendors({ role } as AppUser);
 }
 
 function canManageVendors(role: Role) {
-  return ["admin_hr", "super_admin"].includes(role);
+  return canManageVendorMaster({ role } as AppUser);
 }
 
 function canCreateBills(role: Role) {
-  return ["manager", "hod", "admin_hr", "super_admin"].includes(role);
+  return canCreateVendorBill({ role } as AppUser);
 }
 
 function canVerifyBills(role: Role) {
-  return ["admin_hr", "super_admin"].includes(role);
+  return canVerifyVendorBill({ role } as AppUser);
 }
 
 function canApproveBills(role: Role) {
-  return role === "super_admin";
-}
-
-function canPayBills(role: Role) {
-  return ["accounts_officer", "super_admin"].includes(role);
+  return canApproveVendorBill({ role } as AppUser);
 }
 
 function nextBillNumber(bills: VendorBill[]) {
@@ -600,6 +605,19 @@ export const vendorsService = {
     ) {
       throw new Error("Vendor bill amounts must be non-negative.");
     }
+    if (!input.vendorId || !input.projectId) {
+      throw new Error("Vendor and project are required.");
+    }
+    if (!input.invoiceNumber.trim()) {
+      throw new Error("Invoice number is required.");
+    }
+    const vendor = (await this.listVendors(actor)).find((row) => row.id === input.vendorId);
+    if (!vendor || vendor.status !== "active") {
+      throw new Error("Select an active vendor.");
+    }
+    if (vendor.vendorType !== input.billType) {
+      throw new Error("Bill type must match the selected vendor type.");
+    }
     if (isSupabaseConfigured) {
       const preview = await vendorBillSourceService.preview(input, actor);
       const normalizedInput = {
@@ -607,6 +625,9 @@ export const vendorsService = {
         baseAmount:
           preview.grossAmount > 0 ? preview.grossAmount : input.baseAmount,
       };
+      if (status === "submitted" && calculateVendorBillTotal(normalizedInput) <= 0) {
+        throw new Error("A submitted vendor bill must have a positive total.");
+      }
       const bill = await vendorsRepository.createBill(
         normalizedInput,
         actor,
@@ -616,14 +637,14 @@ export const vendorsService = {
       memoryBills = [bill, ...(memoryBills ?? []).filter((item) => item.id !== bill.id)];
       return bill;
     }
-    const vendor = getVendor(input.vendorId);
+    const memoryVendor = getVendor(input.vendorId);
     const bills = readBills();
     const createdAt = now();
     const bill: VendorBill = {
       id: crypto.randomUUID(),
       billNumber: nextBillNumber(bills),
-      vendorId: vendor.id,
-      vendorName: vendor.name,
+      vendorId: memoryVendor.id,
+      vendorName: memoryVendor.name,
       projectId: input.projectId,
       projectName: getProjectName(input.projectId),
       billType: input.billType,
@@ -668,6 +689,11 @@ export const vendorsService = {
     if (!canVerifyBills(actor.role)) {
       throw new Error("You do not have permission to verify vendor bills.");
     }
+    const current = (isSupabaseConfigured ? await vendorsRepository.listBills(actor) : readBills())
+      .find((row) => row.id === billId);
+    if (!current || current.status !== "submitted") {
+      throw new Error("Only submitted vendor bills can be verified.");
+    }
     if (isSupabaseConfigured) {
       const updated = await vendorsRepository.updateBillStatus(billId, "verified", actor);
       memoryBills = (memoryBills ?? []).map((item) => item.id === billId ? updated : item);
@@ -698,6 +724,11 @@ export const vendorsService = {
     if (!canApproveBills(actor.role)) {
       throw new Error("You do not have permission to approve vendor bills.");
     }
+    const current = (isSupabaseConfigured ? await vendorsRepository.listBills(actor) : readBills())
+      .find((row) => row.id === billId);
+    if (!current || current.status !== "verified") {
+      throw new Error("Only verified vendor bills can be approved.");
+    }
     if (isSupabaseConfigured) {
       const updated = await vendorsRepository.updateBillStatus(billId, "approved", actor);
       memoryBills = (memoryBills ?? []).map((item) => item.id === billId ? updated : item);
@@ -726,7 +757,7 @@ export const vendorsService = {
   },
 
   async generateVoucher(billId: string, actor: AppUser, accountsNote = "") {
-    if (!canPayBills(actor.role)) {
+    if (!canGenerateVendorVoucher(actor)) {
       throw new Error("You do not have permission to generate vendor vouchers.");
     }
     const bills = isSupabaseConfigured
@@ -740,6 +771,10 @@ export const vendorsService = {
       throw new Error("Only approved vendor bills can generate vouchers.");
     }
     if (isSupabaseConfigured) {
+      const existingVoucher = (await vendorsRepository.listVouchers(actor)).find(
+        (row) => row.vendorBillId === bill.id && row.status !== "void",
+      );
+      if (existingVoucher) throw new Error("An active voucher already exists for this bill.");
       const voucher = await vendorsRepository.generateVoucher(
         bill,
         actor,
@@ -800,8 +835,11 @@ export const vendorsService = {
     paymentReference: string,
     paymentMethod: VendorPaymentMethod = "bank_transfer",
   ) {
-    if (!canPayBills(actor.role)) {
+    if (!canRecordVendorPayment(actor)) {
       throw new Error("You do not have permission to pay vendor vouchers.");
+    }
+    if (!paymentReference.trim()) {
+      throw new Error("Payment reference is required.");
     }
     const vouchers = isSupabaseConfigured
       ? await vendorsRepository.listVouchers(actor)
@@ -939,9 +977,13 @@ export const vendorsService = {
     paymentReference: string,
     paymentMethod: VendorPaymentMethod = "bank_transfer",
   ) {
+    if (!canRecordVendorPayment(actor)) {
+      throw new Error("You do not have permission to pay vendor vouchers.");
+    }
     if (!isSupabaseConfigured) {
       throw new Error("Vendor partial payments require Supabase.");
     }
+    if (!paymentReference.trim()) throw new Error("Payment reference is required.");
     const voucher = (await vendorsRepository.listVouchers(actor)).find(
       (row) => row.id === voucherId,
     );

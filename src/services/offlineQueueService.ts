@@ -1,6 +1,7 @@
 import { attendanceService } from "@/services/attendanceService";
 import type { AppUser } from "@/types/auth";
 import type { GeoLocationPoint } from "@/types/attendance";
+import { uploadAttendanceSelfie } from "@/services/attendanceEvidenceService";
 
 export interface OfflineQueueItem<T = unknown> {
   id: string;
@@ -79,11 +80,18 @@ export const offlineQueueService = {
         const payload = item.payload as {
           projectId?: string;
           location?: GeoLocationPoint;
+          selfie?: Blob; mutationId?: string; capturedAt?: string;
         };
+        const selfiePath=payload.selfie&&payload.mutationId?await uploadAttendanceSelfie(actor.organizationId ?? "",actor.id,payload.selfie,payload.mutationId):undefined;
         if (item.type === "attendance-check-in") {
-          await attendanceService.checkIn(actor, payload.location, payload.projectId);
+          await attendanceService.checkIn(actor, payload.location, payload.projectId,{selfiePath,capturedAt:payload.capturedAt,clientMutationId:payload.mutationId});
         } else if (item.type === "attendance-check-out") {
-          await attendanceService.checkOut(actor, payload.location);
+          await attendanceService.checkOut(actor, payload.location,{selfiePath,capturedAt:payload.capturedAt,clientMutationId:payload.mutationId});
+        } else if (item.type === "claim-draft") {
+          const { claimsService } = await import("@/services/claimsService");
+          const claimPayload = item.payload as { input: import("@/types/claims").ClaimInput; submit?: boolean };
+          if (claimPayload.submit) await claimsService.submitClaim(claimPayload.input, actor);
+          else await claimsService.saveDraft(claimPayload.input, actor);
         } else {
           continue;
         }

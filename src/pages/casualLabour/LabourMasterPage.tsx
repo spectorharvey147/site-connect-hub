@@ -10,14 +10,18 @@ import { Input } from "@/components/ui/Input";
 import {
   DEFAULT_LABOUR_RATES,
   LABOUR_CATEGORY_LABELS,
-  LABOUR_VENDORS,
 } from "@/constants/casualLabour";
 import { useAuth } from "@/hooks/useAuth";
+import { useSelectableProjects } from "@/hooks/useSelectableProjects";
 import { casualLabourService } from "@/services/casualLabourService";
+import { vendorContractService } from "@/services/vendorContractService";
+import type { VendorContract } from "@/types/vendorContracts";
 import type {
   CasualLabourWorker,
   LabourCategory,
   LabourWorkerInput,
+  LabourPayee,
+  LabourVendor,
 } from "@/types/casualLabour";
 import { formatCurrency } from "@/utils/format";
 
@@ -26,22 +30,42 @@ const selectClass =
 
 export function LabourMasterPage() {
   const { user } = useAuth();
+  const { projects } = useSelectableProjects(user);
   const [workers, setWorkers] = useState<CasualLabourWorker[]>(
     casualLabourService.listWorkers(),
   );
+  const [vendors, setVendors] = useState<LabourVendor[]>(casualLabourService.listVendors());
+  const [contracts, setContracts] = useState<VendorContract[]>([]);
+  const [payees, setPayees] = useState<LabourPayee[]>([]);
   const [form, setForm] = useState<LabourWorkerInput>({
     fullName: "",
     category: "male",
-    vendorId: LABOUR_VENDORS[0]?.id ?? "",
+    vendorId: "",
     defaultDailyRate: DEFAULT_LABOUR_RATES.male,
+    gender: "male", skillType: "general", phone: "", idProofType: "", idProofNumber: "", defaultOvertimeRate: 0,
   });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (user) {
-      void casualLabourService.loadWorkers(user).then(setWorkers);
+      void Promise.all([
+        casualLabourService.loadWorkers(user),
+        casualLabourService.loadVendors(),
+        vendorContractService.activeLabourContracts(user),
+        casualLabourService.listPayees(user),
+      ]).then(([workerRows, vendorRows, contractRows, payeeRows]) => {
+        setWorkers(workerRows);
+        setVendors(vendorRows);
+        setContracts(contractRows);
+        setPayees(payeeRows);
+        setForm((current) => ({
+          ...current,
+          projectId: current.projectId || projects[0]?.id || user.primaryProjectId || user.projectIds[0] || "",
+          vendorId: current.vendorId || vendorRows[0]?.id || "",
+        }));
+      });
     }
-  }, [user]);
+  }, [projects, user]);
 
   if (!user) {
     return null;
@@ -70,6 +94,18 @@ export function LabourMasterPage() {
       setSaving(false);
     }
   }
+
+  const availableContracts = contracts.filter(
+    (contract) =>
+      (!form.projectId || contract.projectId === form.projectId) &&
+      (!form.vendorId || contract.vendorId === form.vendorId),
+  );
+  const availablePayees = payees.filter(
+    (payee) =>
+      (!form.projectId || payee.projectId === form.projectId) &&
+      (!form.vendorId || !payee.vendorId || payee.vendorId === form.vendorId) &&
+      (!form.vendorContractId || !payee.vendorContractId || payee.vendorContractId === form.vendorContractId),
+  );
 
   return (
     <>
@@ -120,11 +156,29 @@ export function LabourMasterPage() {
                 value={form.vendorId}
                 onChange={(event) => update("vendorId", event.target.value)}
               >
-                {LABOUR_VENDORS.map((vendor) => (
+                {vendors.map((vendor) => (
                   <option key={vendor.id} value={vendor.id}>
                     {vendor.name}
                   </option>
                 ))}
+              </select>
+            </FormField>
+            <FormField label="Project">
+              <select className={selectClass} value={form.projectId ?? ""} onChange={(event) => update("projectId", event.target.value)}>
+                <option value="">Select project</option>
+                {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Labour contract">
+              <select className={selectClass} value={form.vendorContractId ?? ""} onChange={(event) => update("vendorContractId", event.target.value || undefined)}>
+                <option value="">Select contract</option>
+                {availableContracts.map((contract) => <option key={contract.id} value={contract.id}>{contract.contractCode} — {contract.contractTitle ?? contract.vendorName}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Default payee">
+              <select className={selectClass} value={form.defaultPayeeId ?? ""} onChange={(event) => update("defaultPayeeId", event.target.value || undefined)}>
+                <option value="">Contract default</option>
+                {availablePayees.map((payee) => <option key={payee.id} value={payee.id}>{payee.payeeName} ({payee.payeeType})</option>)}
               </select>
             </FormField>
             <Input
@@ -136,6 +190,12 @@ export function LabourMasterPage() {
                 update("defaultDailyRate", Number(event.target.value))
               }
             />
+            <Input label="Overtime rate / hour" type="number" min={0} value={form.defaultOvertimeRate ?? 0} onChange={(event) => update("defaultOvertimeRate", Number(event.target.value))} />
+            <FormField label="Gender"><select className={selectClass} value={form.gender ?? "male"} onChange={(event) => update("gender", event.target.value as LabourWorkerInput["gender"])}><option value="male">Male</option><option value="female">Female</option><option value="other">Other</option></select></FormField>
+            <FormField label="Skill type"><select className={selectClass} value={form.skillType ?? "general"} onChange={(event) => update("skillType", event.target.value as LabourWorkerInput["skillType"])}><option value="general">General</option><option value="skilled">Skilled</option><option value="unskilled">Unskilled</option><option value="supervisor">Supervisor</option></select></FormField>
+            <Input label="Phone" value={form.phone ?? ""} onChange={(event) => update("phone", event.target.value)} />
+            <Input label="ID proof type" value={form.idProofType ?? ""} onChange={(event) => update("idProofType", event.target.value)} />
+            <Input label="ID proof number" value={form.idProofNumber ?? ""} onChange={(event) => update("idProofNumber", event.target.value)} />
             <Button
               type="button"
               leftIcon={<UserRoundPlus className="h-4 w-4" />}
@@ -166,7 +226,10 @@ export function LabourMasterPage() {
                       Category
                     </th>
                     <th className="px-4 py-3 text-right font-semibold text-text-secondary">
-                      Rate
+                      Rates
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold text-text-secondary">
+                      Worker details
                     </th>
                   </tr>
                 </thead>
@@ -188,7 +251,13 @@ export function LabourMasterPage() {
                         {LABOUR_CATEGORY_LABELS[worker.category]}
                       </td>
                       <td className="px-4 py-3 text-right font-bold text-text-primary">
-                        {formatCurrency(worker.defaultDailyRate)}
+                        {formatCurrency(worker.defaultDailyRate)} / day
+                        <p className="text-xs font-medium text-text-secondary">{formatCurrency(worker.defaultOvertimeRate ?? 0)} / OT hour</p>
+                      </td>
+                      <td className="px-4 py-3 text-text-secondary">
+                        <p>{worker.skillType ?? "General"} · {worker.gender ?? "—"}</p>
+                        <p className="text-xs">{worker.phone || "No phone"}</p>
+                        <p className="text-xs">{worker.idProofType ? `${worker.idProofType}: ${worker.idProofNumber ?? "—"}` : "No ID proof"}</p>
                       </td>
                     </tr>
                   ))}

@@ -82,11 +82,17 @@ export function MachineLogsPage() {
 
   const selectedAsset = assets.find((asset) => asset.id === form.machineAssetId);
   const availableContracts = contracts.filter(
-    (contract) =>
+    (contract) => {
+      const machineNumbers = [
+        contract.machineNumber,
+        ...(contract.contractMachineNumbers ?? "").split(",").map((value) => value.trim()),
+      ].filter(Boolean);
+      return (
       contract.projectId === form.projectId &&
       (!selectedAsset?.vendorId || contract.vendorId === selectedAsset.vendorId) &&
-      (!contract.machineNumber ||
-        contract.machineNumber === selectedAsset?.machineNumber),
+      (machineNumbers.length === 0 || machineNumbers.includes(selectedAsset?.machineNumber ?? ""))
+      );
+    },
   );
   const selectedContract = contracts.find(
     (contract) => contract.id === form.vendorContractId,

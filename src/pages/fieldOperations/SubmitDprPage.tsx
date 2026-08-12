@@ -200,6 +200,8 @@ export function SubmitDprPage() {
           fileType: file.fileType,
           fileSize: file.fileSize,
           url: file.signedUrl ?? file.path,
+          storageBucket: file.bucket === "dpr-photos" ? "dpr-photos" : undefined,
+          storagePath: file.path,
           caption: existing?.caption ?? "",
           uploadedBy: currentUser.id,
           uploadedByName: currentUser.fullName,
@@ -712,7 +714,7 @@ export function SubmitDprPage() {
                 accept="image/*"
                 value={form.photos.map((photo) => ({
                   bucket: "dpr-photos",
-                  path: photo.id,
+                  path: photo.storagePath ?? photo.id,
                   fileName: photo.fileName,
                   fileType: photo.fileType,
                   fileSize: photo.fileSize,

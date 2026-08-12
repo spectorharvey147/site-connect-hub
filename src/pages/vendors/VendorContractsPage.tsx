@@ -28,6 +28,7 @@ export function VendorContractsPage({
     [contracts, status],
   );
   const canEdit = user && ["admin_hr", "super_admin"].includes(user.role);
+  const moduleHome = contractType === "labour" ? "/casual-labour" : contractType === "machinery" ? "/machinery" : contractType === "fuel" ? "/fuel" : contractType === "material" ? "/materials" : "/vendors";
   const expiring = contracts.filter((item) => {
     const days = (new Date(item.endDate).getTime() - Date.now()) / 86400000;
     return days >= 0 && days <= 30;
@@ -61,10 +62,10 @@ export function VendorContractsPage({
                   : "Vendor Contracts"
         }
         description="Contract terms linked to site attendance, machine usage, billing and vendor ledgers."
-        breadcrumbs={[{ label: "Home", to: "/home" }, { label: "Vendors", to: "/vendors" }, { label: "Contracts" }]}
+        breadcrumbs={[{ label: "Home", to: "/home" }, { label: contractType === "all" ? "Vendors" : titleForType(contractType), to: moduleHome }, { label: "Contracts" }]}
         action={<div className="flex gap-2">
           <Button type="button" variant="secondary" leftIcon={<Download className="h-4 w-4" />} onClick={exportCsv}>CSV</Button>
-          {canEdit ? <Link to="/vendors/contracts/new"><Button type="button" leftIcon={<FilePlus2 className="h-4 w-4" />}>New Contract</Button></Link> : null}
+          {canEdit ? <Link to={`/vendors/contracts/new${contractType === "all" ? "" : `?type=${contractType}`}`}><Button type="button" leftIcon={<FilePlus2 className="h-4 w-4" />}>New Contract</Button></Link> : null}
         </div>}
       />
       <div className="mb-5 grid gap-4 md:grid-cols-3">
@@ -73,10 +74,12 @@ export function VendorContractsPage({
         <Metric label="Listed contract value" value={formatCurrency(totalValue)} />
       </div>
       <div className="mb-4 flex flex-wrap gap-2">
-        <Link to="/vendors/contracts/labour"><Button type="button" variant="secondary">Labour</Button></Link>
-        <Link to="/vendors/contracts/machinery"><Button type="button" variant="secondary">Machinery</Button></Link>
-        <Link to="/vendors/contracts/fuel"><Button type="button" variant="secondary">Fuel</Button></Link>
-        <Link to="/vendors/contracts/material"><Button type="button" variant="secondary">Material</Button></Link>
+        {contractType === "all" ? <>
+          <Link to="/vendors/contracts/labour"><Button type="button" variant="secondary">Labour</Button></Link>
+          <Link to="/vendors/contracts/machinery"><Button type="button" variant="secondary">Machinery</Button></Link>
+          <Link to="/vendors/contracts/fuel"><Button type="button" variant="secondary">Fuel</Button></Link>
+          <Link to="/vendors/contracts/material"><Button type="button" variant="secondary">Material</Button></Link>
+        </> : null}
         <select className="h-10 rounded-md border border-surface-border bg-surface-card px-3 text-sm" value={status} onChange={(event) => setStatus(event.target.value)}>
           <option value="all">All statuses</option><option value="active">Active</option><option value="draft">Draft</option><option value="expired">Expired</option><option value="inactive">Inactive</option>
         </select>
@@ -91,6 +94,10 @@ export function VendorContractsPage({
       </Card>
     </>
   );
+}
+
+function titleForType(type: VendorContractType | "all") {
+  return type === "labour" ? "Casual Labour" : type === "machinery" ? "Machinery" : type === "fuel" ? "Fuel" : type === "material" ? "Materials" : "Vendors";
 }
 
 function Metric({ label, value }: { label: string; value: string }) {

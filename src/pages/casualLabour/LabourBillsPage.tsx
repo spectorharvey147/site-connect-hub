@@ -18,12 +18,17 @@ function money(row: LabourBillRow, key: string) {
 export function LabourBillsPage() {
   const { user } = useAuth();
   const [bills, setBills] = useState<LabourBillRow[]>([]);
+  const [ledger, setLedger] = useState<LabourBillRow[]>([]);
 
   useEffect(() => {
     if (!user) return;
-    void casualLabourService.listBills(user).then((rows) =>
-      setBills(rows as LabourBillRow[]),
-    );
+    void Promise.all([
+      casualLabourService.listBills(user),
+      casualLabourService.listAdvanceDeductions(user),
+    ]).then(([billRows, ledgerRows]) => {
+      setBills(billRows as LabourBillRow[]);
+      setLedger(ledgerRows as LabourBillRow[]);
+    });
   }, [user]);
 
   const totals = useMemo(
@@ -98,8 +103,8 @@ export function LabourBillsPage() {
                         <td className="px-4 py-3">
                           {String(bill.period_from)} to {String(bill.period_to)}
                         </td>
-                        <td className="px-4 py-3">{String(bill.project_id ?? "")}</td>
-                        <td className="px-4 py-3">{String(bill.vendor_id ?? "")}</td>
+                        <td className="px-4 py-3">{String(bill.project_name ?? bill.project_id ?? "")}</td>
+                        <td className="px-4 py-3">{String(bill.vendor_name ?? bill.vendor_id ?? "")}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(gross)}</td>
                         <td className="px-4 py-3 text-right">{formatCurrency(money(bill, "deduction_amount"))}</td>
                         <td className="px-4 py-3 text-right font-bold">{formatCurrency(money(bill, "net_amount"))}</td>
@@ -108,6 +113,39 @@ export function LabourBillsPage() {
                     );
                   })}
                 </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader><CardTitle>Advance and deduction ledger</CardTitle></CardHeader>
+        <CardContent>
+          {ledger.length === 0 ? (
+            <EmptyState title="No labour ledger entries" description="Advances, deductions, and reconciliation adjustments will appear here." />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-surface-border text-sm">
+                <thead className="bg-slate-50"><tr>
+                  <th className="px-4 py-3 text-left font-semibold text-text-secondary">Date</th>
+                  <th className="px-4 py-3 text-left font-semibold text-text-secondary">Type</th>
+                  <th className="px-4 py-3 text-left font-semibold text-text-secondary">Payee</th>
+                  <th className="px-4 py-3 text-left font-semibold text-text-secondary">Remarks</th>
+                  <th className="px-4 py-3 text-right font-semibold text-text-secondary">Amount</th>
+                  <th className="px-4 py-3 text-left font-semibold text-text-secondary">Status</th>
+                </tr></thead>
+                <tbody className="divide-y divide-surface-border">{ledger.map((entry) => {
+                  const payee = entry.labour_payees as Record<string, unknown> | null;
+                  return <tr key={String(entry.id)}>
+                    <td className="px-4 py-3">{String(entry.transaction_date)}</td>
+                    <td className="px-4 py-3 capitalize">{String(entry.transaction_type)}</td>
+                    <td className="px-4 py-3">{String(payee?.payee_name ?? entry.vendor_name ?? "")}</td>
+                    <td className="px-4 py-3">{String(entry.remarks ?? "")}</td>
+                    <td className="px-4 py-3 text-right font-bold">{formatCurrency(money(entry, "amount"))}</td>
+                    <td className="px-4 py-3 capitalize">{String(entry.status)}</td>
+                  </tr>;
+                })}</tbody>
               </table>
             </div>
           )}

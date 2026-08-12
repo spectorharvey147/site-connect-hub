@@ -52,6 +52,9 @@ export interface ProjectMaster {
   latitude?: number;
   longitude?: number;
   geofenceRadius: number;
+  attendanceEnabled: boolean;
+  attendanceConfigurationVerified: boolean;
+  attendanceReady: boolean;
   startDate?: string;
   endDate?: string;
   projectBudget: number;
@@ -84,6 +87,8 @@ export interface ProjectInput {
   latitude?: number;
   longitude?: number;
   geofenceRadius: number;
+  attendanceEnabled: boolean;
+  attendanceConfigurationVerified: boolean;
   startDate?: string;
   endDate?: string;
   projectBudget: number;

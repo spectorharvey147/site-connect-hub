@@ -135,4 +135,22 @@ describe("vendorsService workflow", () => {
       vendorsService.createBill(billInput(), accounts, "submitted"),
     ).rejects.toThrow("You do not have permission to create vendor bills.");
   });
+
+  it("rejects incomplete submitted bills and out-of-order approvals", async () => {
+    const manager = userByEmail("manager@siteconnect.local");
+    const admin = userByEmail("admin@siteconnect.local");
+    const superAdmin = userByEmail("super@siteconnect.local");
+
+    await expect(vendorsService.createBill({ ...billInput(), invoiceNumber: "" }, manager, "submitted"))
+      .rejects.toThrow("Invoice number is required");
+    await expect(vendorsService.createBill({ ...billInput(), billType: "fuel" }, manager, "submitted"))
+      .rejects.toThrow("Bill type must match");
+
+    const submitted = await vendorsService.createBill(billInput(), manager, "submitted");
+    await expect(vendorsService.approveBill(submitted.id, superAdmin))
+      .rejects.toThrow("Only verified vendor bills can be approved");
+    const verified = await vendorsService.verifyBill(submitted.id, admin);
+    await expect(vendorsService.verifyBill(verified.id, admin))
+      .rejects.toThrow("Only submitted vendor bills can be verified");
+  });
 });

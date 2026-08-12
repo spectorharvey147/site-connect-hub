@@ -12,6 +12,20 @@ import { claimEmailActionService } from "@/services/claimEmailActionService";
 import { notificationService } from "@/services/notificationService";
 import { storageService } from "@/services/storageService";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
+import {
+  canGenerateVoucher,
+  canRecordPayment,
+  canVerifyClaimAsAccounts,
+} from "@/permissions/accountsPermissions";
+import {
+  canApproveClaimAsHod,
+  canApproveClaimAsManager,
+  canApproveClaimAsMaster,
+  canUseMasterIntervention,
+  canVerifyClaimAsAdmin,
+  canViewClaim as canViewClaimByPermission,
+} from "@/permissions/claimPermissions";
+import { canViewFinancialData } from "@/permissions/rolePermissions";
 import type { AppUser, Role } from "@/types/auth";
 import type {
   Claim,
@@ -45,22 +59,22 @@ async function notifyPendingClaimStage(claim: Claim) {
   let recipientIds: string[] = [];
   if (stage.audience === "manager") {
     recipientIds = [claim.reportingManagerId].filter((id): id is string => Boolean(id));
-  } else if (stage.audience === "final" && claim.hodUserId) {
+  } else if (stage.audience === "final" && claim.status === "hod_approval_pending" && claim.hodUserId) {
     recipientIds = [claim.hodUserId];
   } else {
     const roles = stage.audience === "admin"
-      ? ["admin_hr", "super_admin"]
+      ? ["admin_hr"]
       : stage.audience === "accounts"
-        ? ["accounts_officer", "super_admin"]
-        : ["hod", "super_admin"];
+        ? ["accounts_officer"]
+        : claim.status === "final_approval_pending" ? ["super_admin"] : ["hod"];
     let query = client.from("user_profiles").select("id").in("role_id", roles).eq("status", "active");
     if (claim.organizationId) query = query.eq("organization_id", claim.organizationId);
     const { data } = await query;
     recipientIds = (data ?? []).map((row) => String(row.id));
   }
 
-  const scopes = { admin: "admin_verify", manager: "manager_approve", final: "hod_approve", accounts: "accounts_verify" } as const;
-  const actionStage = ["admin_verification_pending", "manager_approval_pending", "final_approval_pending", "accounts_verification_pending"].includes(claim.status);
+  const scopes = { admin: "admin_verify", manager: "manager_approve", final: claim.status === "final_approval_pending" ? "super_admin_approve" : "hod_approve", accounts: "accounts_verify" } as const;
+  const actionStage = ["admin_verification_pending", "manager_approval_pending", "hod_approval_pending", "final_approval_pending", "accounts_verification_pending"].includes(claim.status);
   await Promise.all(recipientIds.map(async (userId) => {
     const fallback = () => notificationService.send({
       userId, type: stage.event, title: `Claim ${claim.claimNumber} ${stage.label}`,
@@ -514,7 +528,7 @@ function seedTransactions(): ClaimTransaction[] {
       claimId: "claim-demo-002",
       claimNumber: "SC-CLM-1029",
       type: "final_approved",
-      description: "Final approval recorded for SC-CLM-1029",
+      description: "Master approval recorded for SC-CLM-1029",
       amount: 3200,
       direction: "debit",
       balanceAfter: 3200,
@@ -531,7 +545,7 @@ function seedTransactions(): ClaimTransaction[] {
       claimId: "claim-demo-003",
       claimNumber: "SC-CLM-1030",
       type: "final_approved",
-      description: "Final approval recorded for SC-CLM-1030",
+      description: "Master approval recorded for SC-CLM-1030",
       amount: 5100,
       direction: "debit",
       balanceAfter: 5100,
@@ -642,47 +656,11 @@ function writeTransactions(transactions: ClaimTransaction[]) {
 }
 
 function canSeeFinancialData(role: Role) {
-  return ["admin_hr", "accounts_officer", "super_admin"].includes(role);
+  return canViewFinancialData({ role } as AppUser);
 }
 
 function canViewClaim(user: AppUser, claim: Claim) {
-  if (claim.userId === user.id) {
-    return true;
-  }
-
-  if (user.role === "super_admin" || user.role === "admin_hr") {
-    return true;
-  }
-
-  if (user.role === "accounts_officer") {
-    return [
-      "accounts_verification_pending",
-      "accounts_returned",
-      "accounts_verified",
-      "voucher_pending",
-      "approved_for_payment",
-      "voucher_generated",
-      "sap_export_pending",
-      "sap_exported",
-      "payment_pending",
-      "partially_paid",
-      "partial_paid",
-      "pending_payment",
-      "paid",
-      "manager_approved",
-      "final_approval_pending",
-    ].includes(claim.status);
-  }
-
-  if (user.role === "manager") {
-    return user.projectIds.includes(claim.projectId);
-  }
-
-  if (user.role === "hod") {
-    return claim.departmentId === user.departmentId || user.projectIds.includes(claim.projectId);
-  }
-
-  return false;
+  return canViewClaimByPermission(user, claim);
 }
 
 function finalApprovalRoles(claim: Claim) {
@@ -695,7 +673,7 @@ function completedFinalRoles(claim: Claim) {
   return claim.approvals
     .filter(
       (approval) =>
-        approval.stage === "final_approval" &&
+        ["hod_approval", "final_approval"].includes(approval.stage) &&
         ["approved", "reduced"].includes(approval.decision),
     )
     .map((approval) => approval.actorRole)
@@ -737,65 +715,50 @@ export function canPerformClaimAction({
 
   if (action === "admin_review") {
     return {
-      allowed:
-        ["admin_hr", "super_admin"].includes(user.role) &&
-        claim.userId !== user.id &&
-        claim.status === "admin_verification_pending",
-      reason: "Admin verification is available only to Admin or Super Admin.",
+      allowed: canVerifyClaimAsAdmin(user, claim),
+      reason: "Admin verification is available only to Admin / HR.",
     };
   }
 
   if (action === "manager_review") {
     return {
-      allowed:
-        ["manager", "hod", "super_admin"].includes(user.role) &&
-        claim.userId !== user.id &&
-        claim.status === "manager_approval_pending",
-      reason: "Manager approval is available only to Manager or Super Admin.",
+      allowed: canApproveClaimAsManager(user, claim),
+      reason: "Manager approval is restricted to the assigned reporting manager or project manager.",
+    };
+  }
+
+  if (action === "hod_review") {
+    return {
+      allowed: canApproveClaimAsHod(user, claim),
+      reason: "HOD approval is restricted to the assigned department/project HOD or delegate.",
     };
   }
 
   if (action === "final_review") {
-    const expectedRole = getNextClaimFinalApprover(claim);
     return {
-      allowed:
-        claim.userId !== user.id &&
-        user.role === expectedRole &&
-        claim.status === "final_approval_pending" &&
-        (user.role !== "hod" || claim.departmentId === user.departmentId),
-      reason:
-        expectedRole === "super_admin"
-          ? "This claim requires Super Admin final approval."
-          : "This claim requires its department HOD approval.",
+      allowed: canApproveClaimAsMaster(user, claim),
+      reason: "Master approval is available only when an exceptional matrix stage is pending.",
     };
   }
 
   if (action === "accounts_verify") {
     return {
-      allowed:
-        ["accounts_officer", "admin_hr", "super_admin"].includes(user.role) &&
-        ["accounts_verification_pending", "accounts_returned"].includes(claim.status),
-      reason: "Accounts verification requires an authorized Accounts, Admin, or Super Admin user.",
+      allowed: canVerifyClaimAsAccounts(user, claim),
+      reason: "Accounts verification requires the assigned Accounts Officer role.",
     };
   }
 
   if (action === "generate_voucher") {
     return {
-      allowed:
-        ["accounts_officer", "super_admin"].includes(user.role) &&
-        ["accounts_verified", "voucher_pending"].includes(claim.status),
+      allowed: canGenerateVoucher(user, claim),
       reason: "The claim must pass Accounts verification before voucher generation.",
     };
   }
 
   if (action === "mark_paid") {
     return {
-      allowed:
-        ["accounts_officer", "super_admin"].includes(user.role) &&
-        ["voucher_generated", "sap_exported", "payment_pending", "partially_paid", "partial_paid", "pending_payment"].includes(
-          claim.status,
-        ),
-      reason: "Only Accounts or Super Admin can mark payment complete.",
+      allowed: canRecordPayment(user, claim),
+      reason: "Only Accounts Officer can mark payment complete.",
     };
   }
 
@@ -865,6 +828,9 @@ function getStageAction(stage: ClaimApprovalStage) {
   if (stage === "manager_approval") {
     return "manager_review" as const;
   }
+  if (stage === "hod_approval") {
+    return "hod_review" as const;
+  }
   return "final_review" as const;
 }
 
@@ -872,7 +838,6 @@ function getNextStatus(
   claim: Claim,
   stage: ClaimReviewInput["stage"],
   decision: ClaimReviewInput["decision"],
-  actor: AppUser,
 ): ClaimStatus {
   if (decision === "rejected") {
     return "rejected";
@@ -887,13 +852,15 @@ function getNextStatus(
   }
 
   if (stage === "manager_approval") {
-    return "final_approval_pending";
+    return "hod_approval_pending";
   }
 
-  const roles = finalApprovalRoles(claim);
-  const currentIndex = roles.indexOf(actor.role as "hod" | "super_admin");
-  const hasNext = currentIndex >= 0 && currentIndex < roles.length - 1;
-  return hasNext ? "final_approval_pending" : "accounts_verification_pending";
+  if (stage === "hod_approval") {
+    return finalApprovalRoles(claim).includes("super_admin")
+      ? "final_approval_pending"
+      : "accounts_verification_pending";
+  }
+  return "accounts_verification_pending";
 }
 
 function getApprovedAmount(
@@ -1932,6 +1899,44 @@ function mapSupabaseTransactionRows(
 }
 
 export const claimsService = {
+  async masterIntervention(
+    claimId: string,
+    action: "place_on_hold" | "return_to_admin" | "return_to_manager" | "return_to_hod" | "cancel_claim" | "release_hold",
+    reason: string,
+    user: AppUser,
+  ) {
+    if (!reason.trim()) throw new Error("A reason is mandatory for Master Intervention.");
+    if (shouldUseSupabaseClaims()) {
+      const claim = await getSupabaseClaim(claimId, user);
+      if (!claim) throw new Error("Claim not found.");
+      if (!canUseMasterIntervention(user, claim)) throw new Error("Master Intervention requires Super Admin.");
+      const { error } = await claimsClient().rpc("master_intervene_claim", {
+        p_claim_id: claimId,
+        p_action: action,
+        p_reason: reason.trim(),
+      });
+      if (error) throw new Error(error.message);
+      const updated = await getSupabaseClaim(claimId, user);
+      if (!updated) throw new Error("Claim could not be reloaded after intervention.");
+      return updated;
+    }
+    const claims = readClaims();
+    const claim = claims.find((item) => item.id === claimId);
+    if (!claim) throw new Error("Claim not found.");
+    if (!canUseMasterIntervention(user, claim)) throw new Error("Master Intervention requires Super Admin.");
+    const target: Record<typeof action, ClaimStatus> = {
+      place_on_hold: "on_hold",
+      return_to_admin: "admin_verification_pending",
+      return_to_manager: "manager_approval_pending",
+      return_to_hod: "hod_approval_pending",
+      cancel_claim: "cancelled",
+      release_hold: "admin_verification_pending",
+    };
+    const updated = { ...claim, status: target[action], updatedAt: now() };
+    writeClaims(claims.map((item) => item.id === claimId ? updated : item));
+    await recordAuditLog({ userId: user.id, action: `claims.master_intervention.${action}`, entityType: "claim", entityId: claimId, oldValues: { status: claim.status }, newValues: { status: updated.status, reason: reason.trim() } });
+    return updated;
+  },
   async listClaims(user: AppUser, filters?: ClaimFilters) {
     if (shouldUseSupabaseClaims()) {
       let query = claimsClient()
@@ -2000,7 +2005,7 @@ export const claimsService = {
     const statusByStage: Record<typeof stage, ClaimStatus[]> = {
       admin: ["admin_verification_pending"],
       manager: ["manager_approval_pending"],
-      final: ["final_approval_pending"],
+      final: user.role === "hod" ? ["hod_approval_pending"] : ["final_approval_pending"],
       payment: [
         "accounts_verified",
         "voucher_pending",
@@ -2245,7 +2250,7 @@ export const claimsService = {
         input.stage,
         input.amountAfter,
       );
-      const nextStatus = getNextStatus(claim, input.stage, input.decision, user);
+      const nextStatus = getNextStatus(claim, input.stage, input.decision);
       const decision: ClaimDecision =
         input.decision === "reduced" ? "reduced" : input.decision;
       const updatePayload = {
@@ -2414,7 +2419,7 @@ export const claimsService = {
     );
     const decision: ClaimDecision =
       input.decision === "reduced" ? "reduced" : input.decision;
-    const nextStatus = getNextStatus(claim, input.stage, input.decision, user);
+    const nextStatus = getNextStatus(claim, input.stage, input.decision);
     const updatedClaim: Claim = {
       ...claim,
       status: nextStatus,
@@ -3046,7 +3051,7 @@ export const claimsService = {
     amount: number,
     paymentReference: string,
   ) {
-    if (!["accounts_officer", "super_admin"].includes(user.role)) {
+    if (user.role !== "accounts_officer") {
       throw new Error("Only Accounts can process partial payments.");
     }
     if (!Number.isFinite(amount) || amount <= 0) {

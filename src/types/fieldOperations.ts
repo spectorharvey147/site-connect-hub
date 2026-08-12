@@ -68,6 +68,8 @@ export interface DprPhoto {
   fileType: string;
   fileSize: number;
   url: string;
+  storageBucket?: "dpr-photos";
+  storagePath?: string;
   caption?: string;
   uploadedBy: string;
   uploadedByName: string;
@@ -103,6 +105,7 @@ export interface DailyProgressReport {
 }
 
 export interface DprInput {
+  id?: string;
   projectId: string;
   reportDate: string;
   shiftId: string;

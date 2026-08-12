@@ -171,7 +171,7 @@ export function ClaimLedgerPage() {
           {!statement || statement.entries.length === 0 ? (
             <EmptyState
               title="No statement entries"
-              description="Ledger entries will appear after final approval, voucher generation or payment."
+              description="Ledger entries will appear after operational approval, voucher generation or payment."
             />
           ) : (
             <div className="overflow-x-auto">

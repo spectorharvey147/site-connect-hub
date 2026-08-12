@@ -15,8 +15,8 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   manager_approved: "Manager Approved",
   hod_approval_pending: "HOD Approval Pending",
   hod_approved: "HOD Approved",
-  final_approval_pending: "Final Approval Pending",
-  final_approved: "Final Approved",
+  final_approval_pending: "Pending Master Approval",
+  final_approved: "Master Exception Approved",
   accounts_verification_pending: "Accounts Verification Pending",
   accounts_verified: "Accounts Verified",
   accounts_returned: "Returned by Accounts",
@@ -33,6 +33,7 @@ export const CLAIM_STATUS_LABELS: Record<ClaimStatus, string> = {
   rejected: "Rejected",
   changes_requested: "Changes Requested",
   cancelled: "Cancelled",
+  on_hold: "On Hold",
   withdrawn: "Withdrawn",
 };
 
@@ -66,6 +67,7 @@ export const CLAIM_STATUS_TONES: Record<
   rejected: "danger",
   changes_requested: "danger",
   cancelled: "neutral",
+  on_hold: "warning",
   withdrawn: "neutral",
 };
 
@@ -74,7 +76,7 @@ export const CLAIM_STAGE_LABELS: Record<ClaimApprovalStage, string> = {
   admin_verification: "Admin Verification",
   manager_approval: "Manager Approval",
   hod_approval: "HOD Approval",
-  final_approval: "Final Approval",
+  final_approval: "Master Exception Approval",
   accounts_verification: "Accounts Verification",
   accounts_payment: "Accounts Payment",
 };

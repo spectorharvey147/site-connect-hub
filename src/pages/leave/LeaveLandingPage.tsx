@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { leaveService } from "@/services/leaveService";
 import { useAuth } from "@/hooks/useAuth";
+import { canApproveLeave } from "@/permissions/leavePermissions";
 import type { LeaveApplication, LeaveBalance } from "@/types/leave";
 
 export function LeaveLandingPage() {
@@ -34,7 +35,7 @@ export function LeaveLandingPage() {
 
   const totalAvailable = balances.reduce((sum, balance) => sum + balance.available, 0);
   const pendingCount = leaves.filter((leave) => leave.status === "pending").length;
-  const canApprove = ["manager", "hod", "super_admin"].includes(user.role);
+  const canApprove = canApproveLeave(user) || leaves.some((leave) => leave.status === "pending" && canApproveLeave(user, leave));
   const canManagePolicy = leaveService.canManagePolicy(user);
 
   return (

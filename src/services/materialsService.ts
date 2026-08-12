@@ -313,18 +313,18 @@ function nextReceiptNumber(receipts: MaterialReceipt[]) {
 }
 
 function canUseMaterials(user: AppUser) {
-  return ["site_staff", "manager", "admin_hr", "super_admin"].includes(user.role);
+  return ["site_staff", "manager", "hod", "admin_hr", "super_admin"].includes(user.role);
 }
 
 function canViewProject(user: AppUser, projectId: string) {
-  if (["admin_hr", "super_admin"].includes(user.role)) {
+  if (["hod", "admin_hr", "super_admin"].includes(user.role)) {
     return true;
   }
   return user.projectIds.includes(projectId);
 }
 
 function canApproveMaterials(user: AppUser, projectId: string) {
-  if (["admin_hr", "super_admin"].includes(user.role)) {
+  if (["hod", "admin_hr", "super_admin"].includes(user.role)) {
     return true;
   }
   return user.role === "manager" && user.projectIds.includes(projectId);
@@ -647,6 +647,10 @@ export const materialsService = {
 
   async approveRequest(requestId: string, actor: AppUser) {
     if (isSupabaseConfigured) {
+      const request = (await materialsRepository.listRequests(actor)).find((item) => item.id === requestId);
+      if (!request) throw new Error("Material request not found.");
+      if (request.status !== "submitted") throw new Error("Only submitted material requests can be approved.");
+      if (!canApproveMaterials(actor, request.projectId)) throw new Error("You do not have permission to approve this material request.");
       const updated = await materialsRepository.approveRequest(requestId, actor);
       memoryRequests = (memoryRequests ?? []).map((item) =>
         item.id === requestId ? updated : item,
@@ -750,6 +754,10 @@ export const materialsService = {
 
   async verifyReceipt(receiptId: string, actor: AppUser) {
     if (isSupabaseConfigured) {
+      const receipt = (await materialsRepository.listReceipts(actor)).find((item) => item.id === receiptId);
+      if (!receipt) throw new Error("Material receipt not found.");
+      if (receipt.status !== "received") throw new Error("Only received material receipts can be verified.");
+      if (!canApproveMaterials(actor, receipt.projectId)) throw new Error("You do not have permission to verify this material receipt.");
       const updated = await materialsRepository.verifyReceipt(receiptId, actor);
       memoryReceipts = (memoryReceipts ?? []).map((item) =>
         item.id === receiptId ? updated : item,

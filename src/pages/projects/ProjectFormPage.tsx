@@ -28,6 +28,8 @@ function emptyProject(organizationId: string): ProjectInput {
     code: "",
     name: "",
     geofenceRadius: 250,
+    attendanceEnabled: false,
+    attendanceConfigurationVerified: false,
     projectBudget: 0,
     workManagerMappings: [],
     status: "active",
@@ -82,6 +84,8 @@ export function ProjectFormPage() {
             latitude: project.latitude,
             longitude: project.longitude,
             geofenceRadius: project.geofenceRadius,
+            attendanceEnabled: project.attendanceEnabled,
+            attendanceConfigurationVerified: project.attendanceConfigurationVerified,
             startDate: project.startDate,
             endDate: project.endDate,
             projectBudget: project.projectBudget,
@@ -169,6 +173,8 @@ export function ProjectFormPage() {
           <Input label="Latitude" type="number" value={form.latitude ?? ""} onChange={(event) => update("latitude", event.target.value ? Number(event.target.value) : undefined)} />
           <Input label="Longitude" type="number" value={form.longitude ?? ""} onChange={(event) => update("longitude", event.target.value ? Number(event.target.value) : undefined)} />
           <Input label="Geofence Radius (m)" type="number" value={form.geofenceRadius} onChange={(event) => update("geofenceRadius", Number(event.target.value))} />
+          <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.attendanceEnabled} onChange={(event)=>update("attendanceEnabled",event.target.checked)}/>Enable GPS attendance</label>
+          <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.attendanceConfigurationVerified} onChange={(event)=>update("attendanceConfigurationVerified",event.target.checked)}/>I verified the site coordinates and geofence</label>
           <Input label="Start Date" type="date" value={form.startDate ?? ""} onChange={(event) => update("startDate", event.target.value)} />
           <Input label="End Date" type="date" value={form.endDate ?? ""} onChange={(event) => update("endDate", event.target.value || undefined)} />
           <Input label="Project Budget" type="number" value={form.projectBudget} onChange={(event) => update("projectBudget", Number(event.target.value))} />

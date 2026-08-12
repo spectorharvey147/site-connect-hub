@@ -9,7 +9,7 @@ export interface ClaimStageNotification {
 const STAGES: Partial<Record<ClaimStatus, ClaimStageNotification>> = {
   admin_verification_pending: { event: "claim_admin_verification_required", audience: "admin", label: "requires Admin/HR verification" },
   manager_approval_pending: { event: "claim_manager_approval_required", audience: "manager", label: "requires manager approval" },
-  final_approval_pending: { event: "claim_final_approval_required", audience: "final", label: "requires final approval" },
+  final_approval_pending: { event: "claim_final_approval_required", audience: "final", label: "requires Master Exception Approval" },
   accounts_verification_pending: { event: "claim_accounts_verification_required", audience: "accounts", label: "requires Accounts verification" },
   voucher_pending: { event: "claim_voucher_ready", audience: "accounts", label: "is ready for voucher generation" },
   sap_export_pending: { event: "claim_sap_export_required", audience: "accounts", label: "requires SAP export" },

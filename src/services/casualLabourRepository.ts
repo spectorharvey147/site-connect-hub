@@ -11,8 +11,10 @@ import type {
   CasualLabourWorker,
   LabourAttendanceInput,
   LabourRecordStatus,
+  LabourPayee,
   LabourWorkerInput,
 } from "@/types/casualLabour";
+import type { LabourVendor } from "@/types/casualLabour";
 
 function workerFromRow(row: DataRow, vendors: Map<string, string>): CasualLabourWorker {
   return {
@@ -24,6 +26,15 @@ function workerFromRow(row: DataRow, vendors: Map<string, string>): CasualLabour
     skillType: row.skill_type as CasualLabourWorker["skillType"],
     vendorId: String(row.vendor_id ?? ""),
     vendorName: vendors.get(String(row.vendor_id ?? "")) ?? "Direct labour",
+    projectId: row.project_id ? String(row.project_id) : undefined,
+    vendorContractId: row.vendor_contract_id
+      ? String(row.vendor_contract_id)
+      : row.contract_id
+        ? String(row.contract_id)
+        : undefined,
+    phone: row.phone ? String(row.phone) : undefined,
+    idProofType: row.id_proof_type ? String(row.id_proof_type) : undefined,
+    idProofNumber: row.id_proof_number ? String(row.id_proof_number) : undefined,
     defaultDailyRate: Number(row.daily_rate_override ?? 0),
     defaultOvertimeRate: Number(row.ot_rate_override ?? 0),
     defaultPayeeId: row.default_payee_id ? String(row.default_payee_id) : undefined,
@@ -73,6 +84,19 @@ function calculateItemAmounts(
 }
 
 export const casualLabourRepository = {
+  async listVendors() {
+    const client = requireSupabase();
+    const { data, error } = await client.from("vendors")
+      .select("id,name,contact_person,phone,status")
+      .eq("vendor_type", "labor")
+      .eq("status", "active")
+      .order("name");
+    if (error) throw new Error(error.message);
+    return ((data as DataRow[] | null) ?? []).map((row): LabourVendor => ({
+      id: String(row.id), name: String(row.name),
+      contactPerson: String(row.contact_person ?? ""), phone: String(row.phone ?? ""),
+    }));
+  },
   async listContractTerms(actor: AppUser) {
     const client = requireSupabase();
     const { data, error } = await client
@@ -93,7 +117,19 @@ export const casualLabourRepository = {
       .eq("status", "active")
       .order("payee_name");
     if (error) throw new Error(error.message);
-    return (data as DataRow[] | null) ?? [];
+    return ((data as DataRow[] | null) ?? []).map((row): LabourPayee => ({
+      id: String(row.id),
+      projectId: String(row.project_id),
+      vendorContractId: row.vendor_contract_id
+        ? String(row.vendor_contract_id)
+        : row.contract_id
+          ? String(row.contract_id)
+          : undefined,
+      vendorId: row.vendor_id ? String(row.vendor_id) : undefined,
+      payeeType: row.payee_type as LabourPayee["payeeType"],
+      payeeName: String(row.payee_name),
+      phone: row.phone ? String(row.phone) : undefined,
+    }));
   },
 
   async listBills(actor: AppUser) {
@@ -104,7 +140,36 @@ export const casualLabourRepository = {
       .eq("organization_id", actor.organizationId!)
       .order("period_from", { ascending: false });
     if (error) throw new Error(error.message);
-    return (data as DataRow[] | null) ?? [];
+    const rows = (data as DataRow[] | null) ?? [];
+    const [projects, vendors] = await Promise.all([
+      projectNameMap(rows.map((row) => String(row.project_id))),
+      vendorNameMap(rows.map((row) => String(row.vendor_id ?? ""))),
+    ]);
+    return rows.map((row) => ({
+      ...row,
+      project_name: projects.get(String(row.project_id)) ?? "Project",
+      vendor_name: vendors.get(String(row.vendor_id ?? "")) ?? "Vendor",
+    }));
+  },
+
+  async listAdvanceDeductions(actor: AppUser) {
+    const client = requireSupabase();
+    const { data, error } = await client
+      .from("labour_advance_deductions")
+      .select("*,labour_payees(payee_name,payee_type)")
+      .eq("organization_id", actor.organizationId!)
+      .order("transaction_date", { ascending: false });
+    if (error) throw new Error(error.message);
+    const rows = (data as DataRow[] | null) ?? [];
+    const [projects, vendors] = await Promise.all([
+      projectNameMap(rows.map((row) => String(row.project_id))),
+      vendorNameMap(rows.map((row) => String(row.vendor_id ?? ""))),
+    ]);
+    return rows.map((row) => ({
+      ...row,
+      project_name: projects.get(String(row.project_id)) ?? "Project",
+      vendor_name: vendors.get(String(row.vendor_id ?? "")) ?? "Vendor",
+    }));
   },
 
   async listWorkers(actor: AppUser) {
@@ -122,7 +187,7 @@ export const casualLabourRepository = {
 
   async createWorker(input: LabourWorkerInput, actor: AppUser) {
     const client = requireSupabase();
-    const projectId = actor.primaryProjectId ?? actor.projectIds[0];
+    const projectId = input.projectId ?? actor.primaryProjectId ?? actor.projectIds[0];
     if (!actor.organizationId || !projectId) {
       throw new Error("Assign the user to a project before creating labour.");
     }
@@ -134,10 +199,19 @@ export const casualLabourRepository = {
         project_id: projectId,
         department_id: actor.departmentId ?? null,
         vendor_id: input.vendorId || null,
+        contract_id: input.vendorContractId ?? null,
+        vendor_contract_id: input.vendorContractId ?? null,
         worker_code: code,
         worker_name: input.fullName.trim(),
         category: input.category,
+        gender: input.gender ?? (input.category === "female" ? "female" : "male"),
+        skill_type: input.skillType ?? (input.category === "supervisor" ? "supervisor" : "general"),
+        phone: input.phone || null,
+        id_proof_type: input.idProofType || null,
+        id_proof_number: input.idProofNumber || null,
         daily_rate_override: input.defaultDailyRate,
+        ot_rate_override: input.defaultOvertimeRate ?? 0,
+        default_payee_id: input.defaultPayeeId || null,
         status: "active",
         created_by: actor.id,
       })
@@ -159,7 +233,7 @@ export const casualLabourRepository = {
     const rows = (data as DataRow[] | null) ?? [];
     const [projects, vendors, profiles] = await Promise.all([
       projectNameMap(rows.map((row) => String(row.project_id))),
-      vendorNameMap(rows.map((row) => String(row.vendor_id)), "casual_labour_vendors"),
+      vendorNameMap(rows.map((row) => String(row.vendor_id))),
       profileNameMap(
         rows.flatMap((row) => [
           String(row.submitted_by ?? ""),
@@ -407,7 +481,7 @@ export const casualLabourRepository = {
       await client.from("casual_labour_attendance").delete().eq("id", attendanceId);
       throw new Error(canonicalItemError.message);
     }
-    await client.from("casual_labour_work_allocations").insert({
+    const { error: allocationError } = await client.from("casual_labour_work_allocations").insert({
       organization_id: actor.organizationId,
       project_id: input.projectId,
       department_id: actor.departmentId ?? null,
@@ -426,66 +500,19 @@ export const casualLabourRepository = {
       status,
       created_by: actor.id,
     });
+    if (allocationError) {
+      await client.from("casual_labour_attendance").delete().eq("id", attendanceId);
+      throw new Error(allocationError.message);
+    }
     return (await this.listAttendance(actor)).find((row) => row.id === attendanceId)!;
   },
 
   async approveAttendance(id: string, actor: AppUser) {
     const client = requireSupabase();
-    const { data: attendance, error: readError } = await client
-      .from("casual_labour_attendance")
-      .select("*,casual_labour_attendance_items(*),casual_labour_attendance_rows(*)")
-      .eq("organization_id", actor.organizationId!)
-      .eq("id", id)
-      .single();
-    if (readError) throw new Error(readError.message);
-    const { error } = await client
-      .from("casual_labour_attendance")
-      .update({
-        status: "approved",
-        approved_by: actor.id,
-        approved_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    const { error } = await client.rpc("approve_casual_labour_attendance", {
+      target_attendance_id: id,
+    });
     if (error) throw new Error(error.message);
-    const canonicalRows =
-      (attendance.casual_labour_attendance_items as DataRow[] | null) ?? [];
-    const legacyRows = (attendance.casual_labour_attendance_rows as DataRow[] | null) ?? [];
-    const rows = canonicalRows.length > 0 ? canonicalRows : legacyRows;
-    const normalAmount = rows.reduce((sum, row) => sum + Number(row.normal_amount ?? 0), 0);
-    const overtimeAmount = rows.reduce(
-      (sum, row) => sum + Number(row.overtime_amount ?? 0),
-      0,
-    );
-    const allowanceAmount = rows.reduce(
-      (sum, row) => sum + Number(row.allowance ?? 0),
-      0,
-    );
-    const deductionAmount = rows.reduce(
-      (sum, row) => sum + Number(row.deduction ?? 0),
-      0,
-    );
-    const { error: billError } = await client.from("casual_labour_bills").upsert(
-      {
-        organization_id: actor.organizationId,
-        project_id: attendance.project_id,
-        department_id: attendance.department_id ?? actor.departmentId ?? null,
-        vendor_id: attendance.vendor_id,
-        contract_id: attendance.contract_id,
-        attendance_id: id,
-        period_from: attendance.date,
-        period_to: attendance.date,
-        normal_amount: normalAmount,
-        overtime_amount: overtimeAmount,
-        allowance_amount: allowanceAmount,
-        deduction_amount: deductionAmount,
-        net_amount:
-          normalAmount + overtimeAmount + allowanceAmount - deductionAmount,
-        status: "approved",
-        created_by: actor.id,
-      },
-      { onConflict: "attendance_id" },
-    );
-    if (billError) throw new Error(billError.message);
     return (await this.listAttendance(actor)).find((row) => row.id === id)!;
   },
 };

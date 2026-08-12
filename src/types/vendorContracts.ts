@@ -80,6 +80,11 @@ export interface VendorContract {
   fuelUnit?: string;
   fuelCreditLimit?: number;
   fuelAdvanceRequired?: boolean;
+  rateUnit?: string;
+  materialSpecification?: string;
+  minimumOrderQuantity?: number;
+  scopeOfWork?: string;
+  serviceFrequency?: string;
   createdBy: string;
   createdByName: string;
   createdAt: string;

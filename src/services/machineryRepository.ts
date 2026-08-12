@@ -14,6 +14,7 @@ import type {
   MachineryContract,
   MachineryContractInput,
   MachineryFilters,
+  MachineryUsageBill,
 } from "@/types/machinery";
 
 function contractRate(row: DataRow) {
@@ -32,11 +33,36 @@ function contractRate(row: DataRow) {
 }
 
 export const machineryRepository = {
+  async listBills(actor: AppUser) {
+    const client = requireSupabase();
+    const { data, error } = await client
+      .from("machinery_usage_bills")
+      .select("*,machine_logs(machine_assets(machine_number))")
+      .eq("organization_id", actor.organizationId!)
+      .order("period_from", { ascending: false });
+    if (error) throw new Error(error.message);
+    const rows = (data as DataRow[] | null) ?? [];
+    const vendors = await vendorNameMap(rows.map((row) => String(row.vendor_id ?? "")));
+    return rows.map((row): MachineryUsageBill => {
+      const log = (row.machine_logs ?? {}) as DataRow;
+      const asset = (log.machine_assets ?? {}) as DataRow;
+      return {
+        id: String(row.id), machineLogId: String(row.machine_log_id),
+        projectId: row.project_id ? String(row.project_id) : undefined,
+        periodFrom: String(row.period_from), machineNumber: String(asset.machine_number ?? ""),
+        vendorName: vendors.get(String(row.vendor_id ?? "")) ?? "Company fleet",
+        usageHours: Number(row.usage_hours), tripCount: Number(row.trip_count),
+        baseAmount: Number(row.base_amount), breakdownDeduction: Number(row.breakdown_deduction),
+        netAmount: Number(row.net_amount), status: String(row.status),
+      };
+    });
+  },
   async listAssets(actor: AppUser, filters?: MachineryFilters) {
     const client = requireSupabase();
     let query = client.from("machine_assets").select("*").order("machine_number");
     if (filters?.projectId) query = query.eq("project_id", filters.projectId);
     if (filters?.vendorId) query = query.eq("vendor_id", filters.vendorId);
+    if (filters?.projectId) query = query.eq("project_id", filters.projectId);
     if (filters?.machineType && filters.machineType !== "all") {
       query = query.eq("machine_type", filters.machineType);
     }
@@ -45,7 +71,7 @@ export const machineryRepository = {
     const rows = (data as DataRow[] | null) ?? [];
     const [projects, vendors] = await Promise.all([
       projectNameMap(rows.map((row) => String(row.project_id ?? ""))),
-      vendorNameMap(rows.map((row) => String(row.vendor_id ?? "")), "machinery_vendors"),
+      vendorNameMap(rows.map((row) => String(row.vendor_id ?? "")), "vendors"),
     ]);
     return rows.map((row): MachineAsset => ({
       id: String(row.id),
@@ -82,6 +108,7 @@ export const machineryRepository = {
       const machines = (row.machinery_contract_machines as DataRow[] | null) ?? [];
       return {
         id: String(row.id),
+        projectId: row.project_id ? String(row.project_id) : undefined,
         contractNumber: String(row.contract_code),
         vendorId: String(row.vendor_id),
         vendorName: vendors.get(String(row.vendor_id)) ?? "Vendor",
@@ -180,7 +207,7 @@ export const machineryRepository = {
     const rows = (data as DataRow[] | null) ?? [];
     const [projects, vendors, profiles] = await Promise.all([
       projectNameMap(rows.map((row) => String(row.project_id))),
-      vendorNameMap(rows.map((row) => String(row.vendor_id ?? "")), "machinery_vendors"),
+      vendorNameMap(rows.map((row) => String(row.vendor_id ?? "")), "vendors"),
       profileNameMap(rows.flatMap((row) => [String(row.submitted_by), String(row.approved_by ?? "")])),
     ]);
     return rows.map((row): MachineLog => {
@@ -244,6 +271,7 @@ export const machineryRepository = {
     actor: AppUser,
     status: Extract<MachineLogStatus, "draft" | "submitted">,
     calculatedCost: number,
+    billing?: { type?: string; rate?: number },
   ) {
     const client = requireSupabase();
     const { data: asset, error: assetError } = await client
@@ -280,8 +308,8 @@ export const machineryRepository = {
         breakdown_reason: input.breakdown.reason || null,
         breakdown_resolution: input.breakdown.resolution || null,
         calculated_cost: calculatedCost,
-        billing_type: null,
-        billing_rate: null,
+        billing_type: billing?.type ?? null,
+        billing_rate: billing?.rate ?? 0,
         remarks: input.remarks,
         status,
         submitted_by: actor.id,
@@ -307,7 +335,7 @@ export const machineryRepository = {
       throw new Error(sessionError.message);
     }
     if (input.breakdown.isBreakdown) {
-      await client.from("machine_breakdowns").insert({
+      const { error: breakdownError } = await client.from("machine_breakdowns").insert({
         organization_id: actor.organizationId,
         project_id: input.projectId,
         vendor_id: asset.vendor_id ?? null,
@@ -322,20 +350,17 @@ export const machineryRepository = {
         status: input.breakdown.resolution ? "resolved" : "open",
         created_by: actor.id,
       });
+      if (breakdownError) {
+        await client.from("machine_logs").delete().eq("id", logId);
+        throw new Error(breakdownError.message);
+      }
     }
     return (await this.listLogs(actor)).find((row) => row.id === logId)!;
   },
 
   async approveLog(id: string, actor: AppUser) {
     const client = requireSupabase();
-    const { error } = await client
-      .from("machine_logs")
-      .update({
-        status: "approved",
-        approved_by: actor.id,
-        approved_at: new Date().toISOString(),
-      })
-      .eq("id", id);
+    const { error } = await client.rpc("approve_machine_log", { target_log_id: id });
     if (error) throw new Error(error.message);
     return (await this.listLogs(actor)).find((row) => row.id === id)!;
   },

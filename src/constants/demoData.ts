@@ -350,7 +350,7 @@ export const DASHBOARD_SUMMARIES: DashboardSummary[] = [
     role: "super_admin",
     metrics: [
       { label: "Approved pipeline", value: "Rs 8.4L", tone: "info" },
-      { label: "Final approvals", value: "6", tone: "warning" },
+      { label: "Master approvals", value: "6", tone: "warning" },
       { label: "Pending payments", value: "Rs 2.1L", tone: "danger" },
       { label: "Vendor outstanding", value: "Rs 11.8L", tone: "neutral" },
     ],
@@ -363,7 +363,7 @@ export const DASHBOARD_SUMMARIES: DashboardSummary[] = [
     activities: [
       {
         id: "act-super-1",
-        title: "Final approval pending",
+        title: "Master approval pending",
         description: "Six verified claims await finance authorization.",
         timestamp: "Today, 12:05",
         module: "Claims",

@@ -1,4 +1,5 @@
 import { supabase } from "@/services/supabaseClient";
+import { getEdgeFunctionErrorMessage } from "@/services/edgeFunctionError";
 import { recordAuditLog } from "@/services/auditService";
 import type { AppUser } from "@/types/auth";
 import type { AppNotification } from "@/types/notifications";
@@ -44,7 +45,7 @@ export const notificationService = {
     const { data, error } = await supabase.functions.invoke("send-notification", {
       body: input,
     });
-    if (error) throw new Error(error.message);
+    if (error) throw new Error(await getEdgeFunctionErrorMessage(error, "Notification delivery failed."));
     if (data?.error) throw new Error(String(data.error));
   },
 

@@ -79,5 +79,6 @@ export interface InitialAdminInput {
   supportPhone: string;
   currency: string;
   timezone: string;
-  defaultWorkflow: "standard" | "manager_hod" | "amount_based";
+  defaultWorkflow: "standard" | "amount_based";
+  masterApprovalThreshold?: number | null;
 }

@@ -20,6 +20,7 @@ export interface GeoLocationPoint {
   longitude: number;
   accuracy: number;
   capturedAt: string;
+  source?: "browser" | "android";
 }
 
 export interface Shift {

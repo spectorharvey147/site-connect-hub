@@ -78,7 +78,13 @@ describe("normalized production data paths", () => {
       "utf8",
     );
     expect(casualLabourRepository).toContain('from("casual_labour_attendance_items")');
-    expect(fieldOperationsRepository).toContain('from("dpr_reports")');
+    expect(fieldOperationsRepository).toContain('rpc("save_daily_progress_report"');
+    expect(
+      readFileSync(
+        resolve(process.cwd(), "supabase", "migrations", "20260811003000_atomic_dpr_and_media.sql"),
+        "utf8",
+      ),
+    ).toContain("insert into dpr_reports");
   });
 
   it("keeps fuel deposits, cash purchases and stock ledgers on normalized tables", () => {

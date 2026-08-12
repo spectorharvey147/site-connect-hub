@@ -16,7 +16,7 @@ describe("claim Accounts verification", () => {
     expect(validateAccountsVerification(1000, input)).toBe(100);
   });
 
-  it("blocks payable amounts above final approval", () => {
+  it("blocks payable amounts above the operationally approved amount", () => {
     expect(() => validateAccountsVerification(1000, { ...input, payableAmount: 1001 }))
       .toThrow("cannot exceed");
   });

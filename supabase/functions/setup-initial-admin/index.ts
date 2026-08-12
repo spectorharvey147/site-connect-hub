@@ -123,6 +123,7 @@ Deno.serve(async (request) => {
 
     organizationId = crypto.randomUUID();
     const departmentId = crypto.randomUUID();
+    const designationId = crypto.randomUUID();
 
     const { error: organizationError } = await admin.from("organizations").insert({
       id: organizationId,
@@ -159,6 +160,18 @@ Deno.serve(async (request) => {
       throw departmentError;
     }
 
+    const { error: designationError } = await admin.from("designations").insert({
+      id: designationId,
+      organization_id: organizationId,
+      department_id: departmentId,
+      designation_code: "SUPER-ADMIN",
+      designation_name: "Super Administrator",
+      level_rank: 100,
+      description: "Organization owner and master system administrator.",
+      status: "active",
+    });
+    if (designationError) throw designationError;
+
     const { data: authData, error: authError } =
       await admin.auth.admin.createUser({
         email,
@@ -184,6 +197,10 @@ Deno.serve(async (request) => {
       role_id: "super_admin",
       department: "Administration",
       department_id: departmentId,
+      designation_id: designationId,
+      reporting_manager_id: null,
+      manager_id: null,
+      hod_user_id: null,
       employment_type: "permanent",
       status: "active",
       created_by: authUserId,
@@ -193,11 +210,6 @@ Deno.serve(async (request) => {
       throw profileError;
     }
 
-    await admin
-      .from("departments")
-      .update({ hod_user_id: authUserId, updated_by: authUserId })
-      .eq("id", departmentId);
-
     const { error: settingsError } = await admin.from("company_settings").insert({
       company_name: organizationName,
       support_email: required(input.supportEmail, "Support email").toLowerCase(),
@@ -206,7 +218,7 @@ Deno.serve(async (request) => {
       timezone: required(input.timezone, "Timezone"),
       require_admin_verification_claims: input.defaultWorkflow !== "standard",
       require_manager_approval_claims: true,
-      require_super_admin_approval_claims: input.defaultWorkflow === "amount_based",
+      require_super_admin_approval_claims: false,
       require_manager_approval_leave: input.defaultWorkflow !== "standard",
       updated_by: authUserId,
     });

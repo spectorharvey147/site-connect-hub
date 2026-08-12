@@ -4,6 +4,7 @@ import { recordAuditLog } from "@/services/auditService";
 import { approvalMatrixService } from "@/services/approvalMatrixService";
 import { userHierarchyService } from "@/services/userHierarchyService";
 import { isSupabaseConfigured, supabase } from "@/services/supabaseClient";
+import { canApproveLeave, canViewLeaveOversight } from "@/permissions/leavePermissions";
 import type { AppUser, Role } from "@/types/auth";
 import type {
   Holiday,
@@ -371,12 +372,8 @@ function writeHolidays(holidays: Holiday[]) {
   writeCollection(HOLIDAYS_STORAGE_KEY, holidays);
 }
 
-function canApproveLeaves(user: AppUser) {
-  return ["manager", "hod", "super_admin"].includes(user.role);
-}
-
 function canManagePolicy(user: AppUser) {
-  return ["admin_hr", "super_admin"].includes(user.role);
+  return canViewLeaveOversight(user);
 }
 
 function canViewLeave(user: AppUser, application: LeaveApplication) {
@@ -790,11 +787,8 @@ export const leaveService = {
   },
 
   async listApprovalQueue(user: AppUser) {
-    if (!canApproveLeaves(user)) {
-      return [];
-    }
     const leaves = await this.listLeaves(user);
-    return leaves.filter((leave) => leave.status === "pending");
+    return leaves.filter((leave) => leave.status === "pending" && canApproveLeave(user, leave));
   },
 
   async listHistory(leaveId: string) {
@@ -831,6 +825,18 @@ export const leaveService = {
     const leaves = shouldUseSupabaseLeave()
       ? await this.listLeaves(user, { userId: user.id })
       : readLeaves().filter((leave) => leave.userId === user.id);
+    const credits = new Map<string, number>();
+    if (shouldUseSupabaseLeave()) {
+      const { data, error } = await leaveClient()
+        .from("leave_balance_transactions")
+        .select("days,leave_types(code)")
+        .eq("user_id", user.id);
+      if (error) throw new Error(error.message);
+      for (const row of (data ?? []) as unknown as Array<{ days: number | string; leave_types: { code: string } | null }>) {
+        const localType = LEAVE_TYPES.find((type) => type.code === row.leave_types?.code);
+        if (localType) credits.set(localType.id, (credits.get(localType.id) ?? 0) + Number(row.days));
+      }
+    }
     return this.listLeaveTypes().map((type) => {
       const approved = leaves
         .filter(
@@ -845,10 +851,10 @@ export const leaveService = {
         userId: user.id,
         leaveTypeId: type.id,
         leaveTypeName: type.name,
-        annualAllowance: type.annualAllowance,
+        annualAllowance: type.annualAllowance + (credits.get(type.id) ?? 0),
         used: approved,
         pending,
-        available: Math.max(type.annualAllowance - approved - pending, 0),
+        available: Math.max(type.annualAllowance + (credits.get(type.id) ?? 0) - approved - pending, 0),
       };
     });
   },
@@ -1173,9 +1179,6 @@ export const leaveService = {
   },
 
   async decideLeave(input: LeaveApprovalInput, actor: AppUser) {
-    if (!canApproveLeaves(actor)) {
-      throw new Error("You do not have permission to approve leave.");
-    }
     const leaves = shouldUseSupabaseLeave() ? [] : readLeaves();
     const leave = shouldUseSupabaseLeave()
       ? await getSupabaseLeave(input.leaveId, actor)
@@ -1183,33 +1186,22 @@ export const leaveService = {
     if (!leave) {
       throw new Error("Leave application not found.");
     }
+    if (!canApproveLeave(actor, leave)) {
+      throw new Error("You do not have permission to approve leave.");
+    }
     if (leave.status !== "pending") {
       throw new Error("Only pending leave can be decided.");
     }
 
     if (shouldUseSupabaseLeave()) {
-      const approvalDate = now();
-      const { error } = await leaveClient()
-        .from("leave_applications")
-        .update({
-          status: input.decision,
-          approved_by: actor.id,
-          approval_date: approvalDate,
-          rejection_reason:
-            input.decision === "rejected" ? input.comments : null,
-          comments: input.comments,
-          updated_by: actor.id,
-        })
-        .eq("id", leave.id);
+      const { error } = await leaveClient().rpc("decide_leave_application", {
+        p_leave_id: leave.id,
+        p_decision: input.decision,
+        p_comments: input.comments,
+      });
       if (error) {
         throw new Error(error.message);
       }
-      await insertSupabaseHistory(
-        leave.id,
-        actor,
-        input.decision,
-        input.comments,
-      );
       const updated = await getSupabaseLeave(leave.id, actor);
       if (!updated) {
         throw new Error("Leave was updated but could not be loaded.");

@@ -61,6 +61,19 @@ export const storageService = {
         if (error) {
           throw new Error(error.message);
         }
+        if (bucket === "dpr-photos") {
+          const registry = await client.from("dpr_upload_registry").insert({
+            organization_id: user.organizationId,
+            uploaded_by: user.id,
+            storage_bucket: bucket,
+            storage_path: path,
+            status: "temporary",
+          });
+          if (registry.error) {
+            await client.storage.from(bucket).remove([path]);
+            throw new Error(`DPR upload could not be registered: ${registry.error.message}`);
+          }
+        }
         const signedUrl = await this.createSignedUrl(bucket, path);
         return {
           bucket,
