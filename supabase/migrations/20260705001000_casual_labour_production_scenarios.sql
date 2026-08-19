@@ -17,7 +17,7 @@ begin
     and status = 'active';
 
   if labour_contract_id is null then
-    raise exception 'Active labour contract AIP-LAB-CMRL-2026-01 is required';
+    return;
   end if;
 
   insert into public.labour_payees (

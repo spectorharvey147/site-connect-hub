@@ -18,6 +18,10 @@ declare field_user constant uuid:='30000000-0000-4000-8000-000000000006';
 declare manager_user constant uuid:='30000000-0000-4000-8000-000000000003';
 declare contract_id constant uuid:='3fa0215e-2240-43dc-8f64-467f5df917fd';
 begin
+ if not exists(select 1 from public.organizations where id=org_id)
+    or not exists(select 1 from public.user_profiles where id=field_user) then
+  return;
+ end if;
  delete from public.material_consumption where material_id='active';
  delete from public.material_damage_wastage where material_id='active';
  delete from public.material_stock_ledger where material_id='active';

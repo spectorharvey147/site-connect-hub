@@ -15,6 +15,16 @@ create index if not exists idx_projects_common_project
 create index if not exists idx_claims_customer_id
   on public.claims(customer_id);
 
+-- These conflict targets must exist before the seed CTEs below run. Older
+-- environments could miss the department constraint because its original
+-- migration used a schema-wide constraint-name check, while projects only had
+-- a legacy global code constraint.
+create unique index if not exists idx_departments_organization_department_code
+  on public.departments(organization_id, department_code);
+
+create unique index if not exists idx_projects_organization_code
+  on public.projects(organization_id, code);
+
 with ipi_org as (
   select id
   from public.organizations

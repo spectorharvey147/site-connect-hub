@@ -33,6 +33,10 @@ revoke all on function public.review_daily_progress_report(uuid,text,text) from 
 do $$
 declare org_id constant uuid:='10000000-0000-4000-8000-000000000001'; declare project_id constant uuid:='50000000-0000-4000-8000-000000000001'; declare field_user constant uuid:='30000000-0000-4000-8000-000000000006'; declare manager_user constant uuid:='30000000-0000-4000-8000-000000000003';
 begin
+ if not exists(select 1 from public.organizations where id=org_id)
+    or not exists(select 1 from public.user_profiles where id=field_user) then
+  return;
+ end if;
  delete from public.daily_progress_reports where id='8e34788d-3bfc-4be4-8819-5c20ee27423f';
  delete from public.dpr_reports where daily_progress_report_id is null and report_number='DPR-2026-0001';
  delete from public.daily_progress_reports where id in('95000000-0000-4000-8000-000000000001','95000000-0000-4000-8000-000000000002','95000000-0000-4000-8000-000000000003','95000000-0000-4000-8000-000000000004');

@@ -120,7 +120,7 @@ declare
 begin
   select id, organization_id into v_hr, v_org from public.user_profiles
   where email = 'meera.nair@aureliainfra.in';
-  if v_hr is null then raise exception 'Leave seed prerequisite missing: HR profile'; end if;
+  if v_hr is null then return; end if;
 
   -- One approved casual-leave record per employee aligns with attendance on 26 June.
   select id into v_type from public.leave_types where code = 'CL';

@@ -149,7 +149,7 @@ begin
   select id into asset_4930 from public.machine_assets where machine_number = 'TN-09-EX-4930';
   select id into asset_5074 from public.machine_assets where machine_number = 'TN-09-EX-5074';
   if asset_4821 is null or asset_4930 is null or asset_5074 is null then
-    raise exception 'All three Vertex excavator assets are required';
+    return;
   end if;
 
   delete from public.machine_logs where id in (

@@ -11,7 +11,7 @@ begin
   select id into machine_4930 from public.machine_assets where machine_number='TN-09-EX-4930';
   select id into machine_5074 from public.machine_assets where machine_number='TN-09-EX-5074';
   if machine_4821 is null or machine_4930 is null or machine_5074 is null then
-    raise exception 'Machinery assets must exist before seeding fuel issues';
+    return;
   end if;
 
   -- Remove zero-value validation placeholders without disturbing real records.
@@ -108,6 +108,12 @@ end $$;
 do $$
 declare stock numeric; receipt_qty numeric; issue_qty numeric;
 begin
+  if not exists (
+    select 1 from public.projects
+    where id = '50000000-0000-4000-8000-000000000001'
+  ) then
+    return;
+  end if;
   select coalesce(sum(quantity),0) into receipt_qty from public.fuel_receipts where status='approved' and project_id='50000000-0000-4000-8000-000000000001' and fuel_type='diesel';
   select coalesce(sum(total_issued),0) into issue_qty from public.fuel_issues where status='approved' and project_id='50000000-0000-4000-8000-000000000001' and fuel_type='diesel';
   select balance_quantity into stock from public.fuel_stock_ledger where project_id='50000000-0000-4000-8000-000000000001' and fuel_type='diesel' order by transaction_date desc,created_at desc limit 1;

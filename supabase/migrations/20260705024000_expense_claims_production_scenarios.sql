@@ -28,7 +28,7 @@ begin
  select id into v_cost from public.project_cost_codes where project_id=v_project and status='active' order by code limit 1;
  select id into v_cat1 from public.expense_categories where status='active' order by id limit 1;
  select id into v_cat2 from public.expense_categories where status='active' order by id offset 1 limit 1;
- if v_priya.id is null or v_rohit is null or v_cat1 is null then raise exception 'Claim seed prerequisites missing'; end if;
+ if v_priya.id is null or v_rohit is null or v_cat1 is null then return; end if;
 
  for v_i in 1..9 loop
   v_claim:=('71000000-0000-4000-8000-'||lpad(v_i::text,12,'0'))::uuid;

@@ -100,7 +100,7 @@ begin
   where email = 'meera.nair@aureliainfra.in';
 
   if v_hr is null then
-    raise exception 'Attendance seed prerequisite missing: HR profile';
+    return;
   end if;
 
   for v_user in
@@ -122,7 +122,7 @@ begin
       and status = 'active'
     limit 1;
     if v_shift is null then
-      raise exception 'Attendance seed prerequisite missing: active shift';
+      return;
     end if;
 
     for v_index in 0..8 loop

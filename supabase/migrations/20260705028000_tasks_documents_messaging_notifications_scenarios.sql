@@ -45,6 +45,7 @@ begin
  select id,organization_id,primary_project_id into v_priya,v_org,v_project from public.user_profiles where email='priya.kulkarni@aureliainfra.in';
  select id into v_arjun from public.user_profiles where email='arjun.menon@aureliainfra.in';select id into v_kavitha from public.user_profiles where email='kavitha.iyer@aureliainfra.in';
  select id into v_meera from public.user_profiles where email='meera.nair@aureliainfra.in';select id into v_rohit from public.user_profiles where email='rohit.shah@aureliainfra.in';
+ if v_priya is null or v_org is null or v_arjun is null then return; end if;
  for v_i in 1..7 loop
   select * into v_user from public.user_profiles where organization_id=v_org and status='active' and role_id='site_staff' order by employee_code offset (v_i-1)%5 limit 1;
   v_task:=('73000000-0000-4000-8000-'||lpad(v_i::text,12,'0'))::uuid;

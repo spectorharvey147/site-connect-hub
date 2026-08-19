@@ -2,6 +2,7 @@ do $$
 declare v_priya uuid;v_org uuid;v_project uuid;v_dept uuid;v_cost uuid;v_contract uuid;v_vendor text;v_receipt uuid;v_request uuid;v_material_receipt uuid;v_claim uuid;
 begin
  select id,organization_id,primary_project_id,department_id into v_priya,v_org,v_project,v_dept from public.user_profiles where email='priya.kulkarni@aureliainfra.in';
+ if v_priya is null or v_org is null then return; end if;
  select id into v_cost from public.project_cost_codes where project_id=v_project and status='active' order by code limit 1;
  select id,vendor_id into v_contract,v_vendor from public.vendor_contracts where organization_id=v_org and contract_type='fuel' and project_id=v_project order by created_at limit 1;
  select id into v_receipt from public.fuel_receipts where project_id=v_project order by receipt_date limit 1;

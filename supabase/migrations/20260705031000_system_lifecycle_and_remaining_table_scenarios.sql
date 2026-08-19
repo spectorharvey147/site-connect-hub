@@ -7,6 +7,7 @@ begin
  select id into v_meera from public.user_profiles where email='meera.nair@aureliainfra.in';select id into v_arjun from public.user_profiles where email='arjun.menon@aureliainfra.in';
  select id into v_kavitha from public.user_profiles where email='kavitha.iyer@aureliainfra.in';select id,primary_project_id,department_id into v_priya,v_project,v_dept from public.user_profiles where email='priya.kulkarni@aureliainfra.in';
  select id into v_rohit from public.user_profiles where email='rohit.shah@aureliainfra.in';
+ if v_ananya is null or v_org is null then return; end if;
 
  insert into public.bootstrap_state(id,status,started_at,completed_at,organization_id,admin_user_id)
  values(true,'complete','2026-07-04 18:00+05:30','2026-07-05 09:00+05:30',v_org,v_ananya)

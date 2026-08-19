@@ -72,7 +72,7 @@ begin
  select id into v_arjun from public.user_profiles where email='arjun.menon@aureliainfra.in';
  select id into v_kavitha from public.user_profiles where email='kavitha.iyer@aureliainfra.in';
  select id into v_cl from public.leave_types where code='CL'; select id into v_sl from public.leave_types where code='SL';
- if v_priya.id is null or v_arjun is null or v_kavitha is null then raise exception 'Named leave workflow users missing'; end if;
+ if v_priya.id is null or v_arjun is null or v_kavitha is null then return; end if;
  v_path_short:=jsonb_build_array(jsonb_build_object('id','manager-priya','sequence',1,'role','manager','label','Reporting Manager','userId',v_arjun,'userName','Arjun Menon','source','default'));
  v_path_long:=v_path_short||jsonb_build_array(jsonb_build_object('id','hod-priya','sequence',2,'role','hod','label','Department HOD','userId',v_kavitha,'userName','Kavitha Iyer','source','default'));
 
