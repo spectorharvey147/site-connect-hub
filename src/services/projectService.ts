@@ -142,11 +142,20 @@ function validateProject(input: ProjectInput) {
   if (!input.organizationId || !input.code.trim() || !input.name.trim()) {
     throw new Error("Organization, project code and project name are required.");
   }
+  if (!Number.isFinite(input.projectBudget) || !Number.isFinite(input.geofenceRadius)) {
+    throw new Error("Budget and geofence radius must be valid numbers.");
+  }
   if (input.projectBudget < 0 || input.geofenceRadius < 0) {
     throw new Error("Budget and geofence radius cannot be negative.");
   }
-  if (input.attendanceEnabled && (input.latitude == null || input.longitude == null || input.geofenceRadius < 10)) {
-    throw new Error("Attendance requires valid coordinates and a geofence radius of at least 10 metres.");
+  if (input.latitude != null && (!Number.isFinite(input.latitude) || input.latitude < -90 || input.latitude > 90)) {
+    throw new Error("Latitude must be between -90 and 90 degrees.");
+  }
+  if (input.longitude != null && (!Number.isFinite(input.longitude) || input.longitude < -180 || input.longitude > 180)) {
+    throw new Error("Longitude must be between -180 and 180 degrees.");
+  }
+  if (input.attendanceEnabled && (input.latitude == null || input.longitude == null || input.geofenceRadius < 10 || input.geofenceRadius > 5000)) {
+    throw new Error("Attendance requires valid coordinates and a geofence radius between 10 and 5,000 metres.");
   }
   if (input.startDate && input.endDate && input.endDate < input.startDate) {
     throw new Error("Project end date must be after start date.");
@@ -154,6 +163,8 @@ function validateProject(input: ProjectInput) {
 }
 
 function projectPayload(input: ProjectInput, actor: AppUser) {
+  const attendanceConfigurationVerified =
+    input.attendanceEnabled && input.attendanceConfigurationVerified;
   return {
     organization_id: input.organizationId,
     code: input.code.trim().toUpperCase(),
@@ -169,9 +180,9 @@ function projectPayload(input: ProjectInput, actor: AppUser) {
     longitude: input.longitude ?? null,
     geofence_radius: input.geofenceRadius,
     attendance_enabled: input.attendanceEnabled,
-    attendance_configuration_verified: input.attendanceConfigurationVerified,
-    attendance_verified_by: input.attendanceConfigurationVerified ? actor.id : null,
-    attendance_verified_at: input.attendanceConfigurationVerified ? new Date().toISOString() : null,
+    attendance_configuration_verified: attendanceConfigurationVerified,
+    attendance_verified_by: attendanceConfigurationVerified ? actor.id : null,
+    attendance_verified_at: attendanceConfigurationVerified ? new Date().toISOString() : null,
     start_date: input.startDate || null,
     end_date: input.endDate || null,
     project_budget: input.projectBudget,

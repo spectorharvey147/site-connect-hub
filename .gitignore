@@ -14,3 +14,9 @@ supabase/.temp/
 tmp/
 outputs/
 site-connect-release.zip
+
+# Local production data contains credentials and personal/business records.
+supabase/seed.ipi-production.sql
+docs/IPI_10_DAY_OPERATIONS_REPORT.md
+
+.vercel
