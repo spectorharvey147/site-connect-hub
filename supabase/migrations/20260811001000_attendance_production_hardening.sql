@@ -100,7 +100,13 @@ end$$;
 drop trigger if exists guard_locked_attendance on public.attendance;
 create trigger guard_locked_attendance before update on public.attendance for each row execute function public.guard_locked_attendance();
 
-create or replace function public.attendance_punch(p_action text,p_project_id uuid,p_latitude numeric,p_longitude numeric,p_accuracy int)
+create or replace function public.attendance_punch(
+  p_action text,
+  p_project_id uuid default null,
+  p_latitude numeric default null,
+  p_longitude numeric default null,
+  p_accuracy int default null
+)
 returns public.attendance language plpgsql security definer set search_path=public as $$
 declare v_record public.attendance; v_profile public.user_profiles; v_project public.projects; v_shift uuid;
   v_now timestamptz:=clock_timestamp(); v_work_date date:=current_date; v_distance numeric; v_hours numeric;
